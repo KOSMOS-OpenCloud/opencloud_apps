@@ -41,10 +41,10 @@ for app in $APPS; do
     fi
 
     PACKAGE="${app}-web"
-    TMPZIP="$(mktemp -t "${PACKAGE}-XXXXXX.zip")"
-    trap "rm -f '$TMPZIP'" EXIT
+    TMPZIP="/tmp/${PACKAGE}-${TAG}.zip"
+    rm -f "$TMPZIP"
 
-    (cd "$APP_DIR" && zip -qr "$TMPZIP" .)
+    (cd "$APP_DIR" && zip -r "$TMPZIP" .)
     ZIP_SIZE="$(du -h "$TMPZIP" | cut -f1)"
 
     UPLOAD_URL="https://${REGISTRY}/api/packages/${OWNER}/generic/${PACKAGE}/${TAG}/${PACKAGE}.zip"
