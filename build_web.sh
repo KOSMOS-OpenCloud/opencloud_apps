@@ -13,11 +13,11 @@ if [ ! -d "$WEB_EXT_DIR/packages" ]; then
     git clone --depth 1 https://github.com/opencloud-eu/web-extensions.git "$WEB_EXT_DIR"
 fi
 
-# Install deps
-if [ ! -d "$WEB_EXT_DIR/node_modules" ]; then
-    echo "[deps] Installing dependencies..."
-    (cd "$WEB_EXT_DIR" && pnpm install)
-fi
+# Pin extension-sdk to 7.0.1 (7.1.x has broken shared imports)
+cd "$WEB_EXT_DIR"
+pnpm config set minimum-release-age 0
+sed -i 's/"@opencloud-eu\/extension-sdk": "[^"]*"/"@opencloud-eu\/extension-sdk": "7.0.1"/' package.json
+pnpm install
 
 mkdir -p "$BUILD_DIR"
 
