@@ -41,7 +41,7 @@ for app in $APPS; do
         RESOLVE_TAG=$(curl -sf "https://${REGISTRY}/api/v1/packages/${OWNER}?type=generic&q=${PACKAGE}" \
           | python3 -c "
 import sys, json
-pkgs = [p for p in json.load(sys.stdin) if p['name'] == '${PACKAGE}']
+pkgs = [p for p in json.load(sys.stdin) if p['name'] == '${PACKAGE}' and p['version'] != 'latest']
 if not pkgs:
     print('NOT_FOUND', file=sys.stderr); sys.exit(1)
 print(pkgs[0]['version'])
