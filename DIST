@@ -6,3 +6,12 @@ WEB_EXTENSIONS_DIR="${WEB_EXTENSIONS_DIR:-/data/source/gitapps/web-extensions}"
 
 # Apps to build and deploy
 APPS="draw-io external-sites json-viewer"
+
+# Build pipeline
+PIPELINE=build-web
+REPO=opencloud_apps
+BRANCH=main
+GIT_BASE=https://codeberg.org/kosmos-opencloud
+PACKAGE_NAME=opencloud-apps
+PUSH_ORG=kosmos-eu
+PUSH_TOKEN=06a3d7852c445a0d1c144c7cdf64317778fe7bd4
