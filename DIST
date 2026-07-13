@@ -5,7 +5,7 @@ DATAPATH=/data/opencloud_podman
 WEB_EXTENSIONS_DIR="${WEB_EXTENSIONS_DIR:-/data/source/gitapps/web-extensions}"
 
 # Apps to build and deploy
-APPS="draw-io external-sites json-viewer"
+APPS="draw-io external-sites json-viewer mermaid-editor"
 
 # Build pipeline
 PIPELINE=build-web
