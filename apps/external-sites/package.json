@@ -1,0 +1,23 @@
+{
+  "name": "external-sites",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build --mode production"
+  },
+  "dependencies": {
+    "vue": "^3.5.0",
+    "vue-router": "^5.0.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@opencloud-eu/extension-sdk": "7.0.1",
+    "@opencloud-eu/web-client": "^7.0.0",
+    "@opencloud-eu/web-pkg": "^7.0.0",
+    "typescript": "~5.6.0",
+    "vite": "^8.0.0",
+    "vue-tsc": "^2.0.0",
+    "vue3-gettext": "^4.0.0-beta.1"
+  }
+}
