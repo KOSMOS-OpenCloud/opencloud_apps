@@ -15,9 +15,10 @@ fi
 
 # Pin extension-sdk to 7.0.1 (7.1.x has broken shared imports)
 cd "$WEB_EXT_DIR"
-pnpm config set minimum-release-age 0
 sed -i 's/"@opencloud-eu\/extension-sdk": "[^"]*"/"@opencloud-eu\/extension-sdk": "7.0.1"/' package.json
-pnpm install
+# Remove lockfile to resolve fresh (upstream lockfile may pin wrong MF runtime)
+rm -f pnpm-lock.yaml
+pnpm install --no-frozen-lockfile
 
 mkdir -p "$BUILD_DIR"
 
