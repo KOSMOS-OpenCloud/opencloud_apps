@@ -4,9 +4,10 @@
       <div class="mermaid-editor-source">
         <textarea
           ref="sourceEl"
-          v-model="source"
+          v-model="content"
           class="mermaid-editor-textarea"
           spellcheck="false"
+          :readonly="isReadOnly"
           @input="onInput"
         />
       </div>
@@ -17,76 +18,82 @@
   </main>
 </template>
 
-<script setup lang="ts">
-import { ref, onMounted, watch, nextTick } from 'vue'
-import { useAppDefaults } from '@opencloud-eu/web-pkg'
+<script lang="ts">
+import { defineComponent, ref, onMounted, watch, nextTick, PropType } from 'vue'
+import { Resource } from '@opencloud-eu/web-client'
 import mermaid from 'mermaid'
 
-const { currentFileContext, getFileContents, putFileContents } = useAppDefaults({ applicationId: 'mermaid-editor' })
+export default defineComponent({
+  name: 'MermaidEditor',
+  props: {
+    resource: {
+      type: Object as PropType<Resource>,
+      required: true
+    },
+    currentContent: {
+      type: String,
+      required: true
+    },
+    isReadOnly: {
+      type: Boolean,
+      required: true
+    },
+    isDirty: {
+      type: Boolean,
+      required: true
+    }
+  },
+  emits: ['update:currentContent', 'update:isDirty'],
+  setup(props, { emit }) {
+    const content = ref('')
+    const previewEl = ref<HTMLElement>()
+    let renderCounter = 0
 
-const source = ref('')
-const previewEl = ref<HTMLElement>()
-const sourceEl = ref<HTMLTextAreaElement>()
-let saveTimeout: ReturnType<typeof setTimeout> | null = null
-let renderCounter = 0
+    onMounted(async () => {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: 'default',
+        securityLevel: 'loose'
+      })
 
-const defaultContent = `graph TD
+      content.value = props.currentContent || `graph TD
     A[Start] --> B{Decision}
     B -->|Yes| C[OK]
     B -->|No| D[Cancel]
 `
+      await renderDiagram()
+    })
 
-onMounted(async () => {
-  mermaid.initialize({
-    startOnLoad: false,
-    theme: 'default',
-    securityLevel: 'loose'
-  })
-
-  if (currentFileContext.value?.path) {
-    try {
-      const response = await getFileContents(currentFileContext.value)
-      source.value = typeof response === 'string' ? response : (response as any).body || ''
-    } catch {
-      source.value = defaultContent
+    async function renderDiagram() {
+      if (!previewEl.value) return
+      try {
+        renderCounter++
+        const id = `mermaid-${renderCounter}`
+        const { svg } = await mermaid.render(id, content.value)
+        previewEl.value.innerHTML = svg
+      } catch {
+        previewEl.value.innerHTML = '<p style="color: #c62828; padding: 1rem;">Syntax error in diagram</p>'
+      }
     }
-  } else {
-    source.value = defaultContent
+
+    function onInput() {
+      emit('update:currentContent', content.value)
+      emit('update:isDirty', true)
+    }
+
+    watch(content, async () => {
+      await nextTick()
+      await renderDiagram()
+    })
+
+    watch(() => props.currentContent, (val) => {
+      if (val !== content.value) {
+        content.value = val
+      }
+    })
+
+    return { content, previewEl, onInput }
   }
-
-  await renderDiagram()
-})
-
-async function renderDiagram() {
-  if (!previewEl.value) return
-
-  try {
-    renderCounter++
-    const id = `mermaid-render-${renderCounter}`
-    const { svg } = await mermaid.render(id, source.value)
-    previewEl.value.innerHTML = svg
-  } catch {
-    previewEl.value.innerHTML = '<p style="color: #c62828; padding: 1rem;">Syntax error in diagram</p>'
-  }
-}
-
-function onInput() {
-  if (saveTimeout) clearTimeout(saveTimeout)
-  saveTimeout = setTimeout(save, 1500)
-}
-
-async function save() {
-  if (!currentFileContext.value?.path) return
-  try {
-    await putFileContents(currentFileContext.value, source.value)
-  } catch (e) {
-    console.error('[mermaid-editor] save failed:', e)
-  }
-}
-
-watch(source, async () => {
-  await nextTick()
-  await renderDiagram()
 })
 </script>
 
@@ -107,7 +114,6 @@ watch(source, async () => {
   flex: 1;
   min-width: 0;
   display: flex;
-  flex-direction: column;
 }
 
 .mermaid-editor-textarea {
