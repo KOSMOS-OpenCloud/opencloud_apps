@@ -52,8 +52,16 @@ export default defineComponent({
     onMounted(async () => {
       mermaid.initialize({
         startOnLoad: false,
-        theme: 'default',
-        securityLevel: 'loose'
+        theme: 'base',
+        securityLevel: 'loose',
+        themeVariables: {
+          primaryColor: '#e3f2fd',
+          primaryTextColor: '#222',
+          primaryBorderColor: '#90caf9',
+          lineColor: '#666',
+          secondaryColor: '#f5f5f5',
+          tertiaryColor: '#fff'
+        }
       })
 
       content.value = props.currentContent || `graph TD
