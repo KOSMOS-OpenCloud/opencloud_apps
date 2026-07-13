@@ -28,7 +28,7 @@ export default defineWebApplication({
     const appInfo: ApplicationInformation = {
       name: $gettext('Mermaid Editor'),
       id: applicationId,
-      icon: 'flow-chart',
+      icon: 'organization-chart',
       color: '#FF3670',
       defaultExtension: 'mmd',
       extensions: [
