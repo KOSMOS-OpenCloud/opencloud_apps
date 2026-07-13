@@ -13,16 +13,7 @@ if [ ! -d "$WEB_EXT_DIR/packages" ]; then
     git clone --depth 1 https://github.com/opencloud-eu/web-extensions.git "$WEB_EXT_DIR"
 fi
 
-# Pin extension-sdk to 7.0.1 (7.1.x has broken shared imports)
-cd "$WEB_EXT_DIR"
-sed -i 's/"@opencloud-eu\/extension-sdk": "[^"]*"/"@opencloud-eu\/extension-sdk": "7.0.1"/' package.json
-# Remove lockfile and install
-rm -f pnpm-lock.yaml
-pnpm install --no-frozen-lockfile
-# Force MF runtime 2.4.0 (must match our other extensions)
-# SDK 7.0.1 brings @module-federation/vite@1.15.4 but workspace resolves old runtime
-pnpm add -w @module-federation/runtime@2.4.0 @module-federation/runtime-core@2.4.0
-
+# Build each app independently (not as workspace) to avoid MF version conflicts
 mkdir -p "$BUILD_DIR"
 
 for app in $APPS; do
@@ -33,7 +24,11 @@ for app in $APPS; do
     fi
 
     echo "=== Build: $app ==="
-    (cd "$PKG_DIR" && pnpm build)
+    # Pin SDK in package-level package.json
+    sed -i 's/"@opencloud-eu\/extension-sdk": "[^"]*"/"@opencloud-eu\/extension-sdk": "7.0.1"/' "$PKG_DIR/package.json"
+    # Remove workspace link — build standalone
+    rm -f "$PKG_DIR/pnpm-lock.yaml"
+    (cd "$PKG_DIR" && pnpm install --no-frozen-lockfile --ignore-workspace && pnpm build)
 
     OUT_DIR="$PKG_DIR/dist"
     if [ ! -d "$OUT_DIR" ]; then
