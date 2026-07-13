@@ -16,7 +16,9 @@ fi
 # Pin extension-sdk to 7.0.1 (7.1.x has broken shared imports)
 cd "$WEB_EXT_DIR"
 sed -i 's/"@opencloud-eu\/extension-sdk": "[^"]*"/"@opencloud-eu\/extension-sdk": "7.0.1"/' package.json
-# Remove lockfile to resolve fresh (upstream lockfile may pin wrong MF runtime)
+# Pin MF runtime to 2.4.0 (must match our other extensions)
+sed -i 's/"@module-federation\/vite": "[^"]*"/"@module-federation\/vite": "1.15.4"/' package.json
+# Remove lockfile to resolve fresh (upstream lockfile pins wrong versions)
 rm -f pnpm-lock.yaml
 pnpm install --no-frozen-lockfile
 
