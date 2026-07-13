@@ -160,4 +160,10 @@ export default defineComponent({
 .mermaid-editor-render svg {
   max-width: 100%;
 }
+
+/* Tailwind sets `color` on * which overrides Mermaid's classDef colors.
+   Unset only the color property so Mermaid's inline styles apply. */
+.mermaid-editor-render :where(foreignObject, foreignObject *) {
+  color: unset;
+}
 </style>
