@@ -1,5 +1,6 @@
 #!/bin/bash
 set -euo pipefail
+export CI=true
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 . "$SCRIPT_DIR/DIST"

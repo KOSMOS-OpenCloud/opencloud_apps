@@ -1,4 +1,4 @@
 dist/
 DIST
-DIST
 apps/*/node_modules/
+apps/*/pnpm-lock.yaml
