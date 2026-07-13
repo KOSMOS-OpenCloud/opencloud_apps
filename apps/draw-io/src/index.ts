@@ -12,7 +12,7 @@ import App from './App.vue'
 import { useGettext } from 'vue3-gettext'
 import { computed } from 'vue'
 
-const applicationId = 'draw-io'
+const applicationId = 'draw-io-editor'
 
 export default defineWebApplication({
   setup() {
@@ -22,7 +22,7 @@ export default defineWebApplication({
 
     const routes = [
       {
-        name: 'draw-io',
+        name: 'draw-io-editor',
         path: '/:driveAliasAndItem(.*)?',
         component: AppWrapperRoute(App, {
           applicationId,
@@ -38,7 +38,7 @@ export default defineWebApplication({
     ]
 
     const appInfo: ApplicationInformation = {
-      name: 'Draw.io',
+      name: 'Draw.io Editor',
       id: applicationId,
       icon: 'grid',
       color: '#EF6C00',
@@ -46,7 +46,7 @@ export default defineWebApplication({
       extensions: [
         {
           extension: 'drawio',
-          routeName: 'draw-io',
+          routeName: 'draw-io-editor',
           newFileMenu: {
             menuTitle() {
               return $gettext('Draw.io document')
@@ -55,7 +55,7 @@ export default defineWebApplication({
         },
         {
           extension: 'vsdx',
-          routeName: 'draw-io'
+          routeName: 'draw-io-editor'
         }
       ]
     }
