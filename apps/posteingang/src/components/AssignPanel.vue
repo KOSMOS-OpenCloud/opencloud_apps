@@ -26,18 +26,21 @@
         <span class="assign-target-label">{{ folder.label }}</span>
       </button>
     </div>
-    <button
+    <oc-button
       class="assign-btn"
+      variation="primary"
+      appearance="filled"
       :disabled="!selectedTarget || assigning"
       @click="$emit('assign')"
     >
-      {{ assigning ? 'Wird zugewiesen...' : 'Zuweisen' }}
-    </button>
+      {{ assigning ? $gettext('Wird zugewiesen...') : $gettext('Zuweisen') }}
+    </oc-button>
   </div>
 </template>
 
 <script lang="ts">
 import { defineComponent, PropType } from 'vue'
+import { useGettext } from 'vue3-gettext'
 import { TargetFolder } from '../types'
 
 export default defineComponent({

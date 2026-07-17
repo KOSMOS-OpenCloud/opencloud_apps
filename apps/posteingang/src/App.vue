@@ -42,7 +42,12 @@
           :schema="metaSchema"
           :values="docMetadata"
           :reindexing="reindexing"
+          :editing="editingMeta"
+          :saving="savingMeta"
           @reindex="onReindex"
+          @toggle-edit="editingMeta = !editingMeta"
+          @update="onMetadataUpdate"
+          @save="onSaveMetadata"
         />
       </aside>
     </div>
@@ -77,6 +82,8 @@ export default defineComponent({
     const loadingPdf = ref(false)
     const assigning = ref(false)
     const reindexing = ref(false)
+    const editingMeta = ref(false)
+    const savingMeta = ref(false)
     const pdfUrl = ref('')
     const docMetadata = ref<Record<string, any>>({})
 
@@ -185,6 +192,7 @@ export default defineComponent({
     function onSelectDocument(doc: DocumentEntry) {
       selectedDoc.value = doc
       selectedTarget.value = ''
+      editingMeta.value = false
       loadPdfUrl(doc)
       loadMetadata(doc)
     }
@@ -217,6 +225,26 @@ export default defineComponent({
         showErrorMessage({ title: 'Zuweisung fehlgeschlagen' })
       }
       assigning.value = false
+    }
+
+    function onMetadataUpdate(key: string, value: string | null) {
+      docMetadata.value = { ...docMetadata.value, [key]: value }
+    }
+
+    async function onSaveMetadata() {
+      if (!space.value || !selectedDoc.value) return
+      savingMeta.value = true
+      try {
+        const driveId = space.value.id
+        const itemId = selectedDoc.value.resource.fileId || selectedDoc.value.resource.id
+        const httpClient = (clientService as any).httpAuthenticated
+        await httpClient.patch(`/graph/v1beta1/drives/${driveId}/items/${itemId}/metadata`, docMetadata.value)
+        showMessage({ title: 'Metadaten gespeichert' })
+        editingMeta.value = false
+      } catch {
+        showErrorMessage({ title: 'Metadaten konnten nicht gespeichert werden' })
+      }
+      savingMeta.value = false
     }
 
     async function onReindex() {
@@ -255,9 +283,13 @@ export default defineComponent({
       pdfUrl,
       docMetadata,
       reindexing,
+      editingMeta,
+      savingMeta,
       onSelectDocument,
       onAssign,
-      onReindex
+      onReindex,
+      onMetadataUpdate,
+      onSaveMetadata
     }
   }
 })
