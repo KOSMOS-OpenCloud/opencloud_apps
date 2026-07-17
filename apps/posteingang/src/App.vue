@@ -153,8 +153,12 @@ export default defineComponent({
       if (!space.value) return
       loadingPdf.value = true
       try {
-        pdfUrl.value = await clientService.webdav.getFileUrl(space.value, doc.resource)
-      } catch {
+        console.log('[posteingang] loadPdfUrl resource:', doc.resource.name, doc.resource.path, doc.resource.webDavPath)
+        const url = await clientService.webdav.getFileUrl(space.value, doc.resource)
+        console.log('[posteingang] getFileUrl result:', url)
+        pdfUrl.value = url
+      } catch (err) {
+        console.error('[posteingang] getFileUrl error:', err)
         showErrorMessage({ title: 'PDF konnte nicht geladen werden' })
       }
       loadingPdf.value = false
