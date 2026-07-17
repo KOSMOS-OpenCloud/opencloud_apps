@@ -56,8 +56,9 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, onMounted } from 'vue'
+import { defineComponent, ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useClientService, useSpacesStore, useUserStore, useMessages } from '@opencloud-eu/web-pkg'
+import { defineStore } from 'pinia'
 import { SpaceResource } from '@opencloud-eu/web-client'
 import DocumentList from './components/DocumentList.vue'
 import PdfPreview from './components/PdfPreview.vue'
@@ -265,10 +266,31 @@ export default defineComponent({
       reindexing.value = false
     }
 
+    // Ensure appMode is active while this app is mounted
+    const useAppModeStore = defineStore('appMode', () => {
+      const enabled = ref(false)
+      const config = ref<any>(null)
+      const spaceAlias = ref('')
+      const isEnabled = computed(() => enabled.value)
+      function enable(c: any, alias: string) { config.value = c; spaceAlias.value = alias; enabled.value = true }
+      function disable() { enabled.value = false; config.value = null; spaceAlias.value = '' }
+      return { isEnabled, enabled, config, spaceAlias, enable, disable }
+    })
+    const appModeStore = useAppModeStore()
+
     onMounted(async () => {
+      console.log('[posteingang] appMode.isEnabled on mount:', appModeStore.isEnabled)
+      if (!appModeStore.isEnabled) {
+        appModeStore.enable({ spaceId: '', spaceName: 'Posteingang', driveAlias: 'project/posteingang', driveType: 'project', name: 'Posteingang', icon: 'inbox-unarchive', color: '#1565C0' }, 'project/posteingang')
+        console.log('[posteingang] appMode force-enabled')
+      }
       await loadConfig()
       await loadMetaSchema()
       await loadDocuments()
+    })
+
+    onBeforeUnmount(() => {
+      appModeStore.disable()
     })
 
     return {
