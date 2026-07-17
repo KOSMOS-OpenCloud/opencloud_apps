@@ -34,6 +34,7 @@
           :target-folders="config.targetFolders"
           :selected-target="selectedTarget"
           :assigning="assigning"
+          :disabled="editingMeta"
           @select-target="selectedTarget = $event"
           @assign="onAssign"
         />

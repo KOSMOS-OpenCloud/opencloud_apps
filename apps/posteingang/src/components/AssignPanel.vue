@@ -30,7 +30,7 @@
       class="assign-btn"
       variation="primary"
       appearance="filled"
-      :disabled="!selectedTarget || assigning"
+      :disabled="!selectedTarget || assigning || disabled"
       @click="$emit('assign')"
     >
       {{ assigning ? $gettext('Wird zugewiesen...') : $gettext('Zuweisen') }}
@@ -48,7 +48,8 @@ export default defineComponent({
   props: {
     targetFolders: { type: Array as PropType<TargetFolder[]>, required: true },
     selectedTarget: { type: String, default: '' },
-    assigning: { type: Boolean, default: false }
+    assigning: { type: Boolean, default: false },
+    disabled: { type: Boolean, default: false }
   },
   emits: ['select-target', 'assign']
 })
