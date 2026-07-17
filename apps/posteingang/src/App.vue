@@ -38,9 +38,11 @@
           @assign="onAssign"
         />
         <MetadataPanel
-          v-if="selectedDoc && Object.keys(docMetadata).length > 0"
+          v-if="selectedDoc"
           :schema="metaSchema"
           :values="docMetadata"
+          :reindexing="reindexing"
+          @reindex="onReindex"
         />
       </aside>
     </div>
@@ -74,6 +76,7 @@ export default defineComponent({
     const loadingList = ref(false)
     const loadingPdf = ref(false)
     const assigning = ref(false)
+    const reindexing = ref(false)
     const pdfUrl = ref('')
     const docMetadata = ref<Record<string, any>>({})
 
@@ -216,6 +219,23 @@ export default defineComponent({
       assigning.value = false
     }
 
+    async function onReindex() {
+      if (!space.value || !selectedDoc.value) return
+      reindexing.value = true
+      try {
+        const resourceId = selectedDoc.value.resource.fileId || selectedDoc.value.resource.id
+        const httpClient = (clientService as any).httpAuthenticated
+        await httpClient.post('/api/v0/search/index-item', { resource_id: resourceId })
+        showMessage({ title: 'Reindex angestossen' })
+        // Reload metadata after a short delay to allow indexing
+        setTimeout(() => loadMetadata(selectedDoc.value!), 3000)
+      } catch (err) {
+        console.error('[posteingang] reindex error:', err)
+        showErrorMessage({ title: 'Reindex fehlgeschlagen' })
+      }
+      reindexing.value = false
+    }
+
     onMounted(async () => {
       await loadConfig()
       await loadMetaSchema()
@@ -234,8 +254,10 @@ export default defineComponent({
       assigning,
       pdfUrl,
       docMetadata,
+      reindexing,
       onSelectDocument,
-      onAssign
+      onAssign,
+      onReindex
     }
   }
 })
