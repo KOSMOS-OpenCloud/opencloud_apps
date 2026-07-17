@@ -235,13 +235,13 @@ export default defineComponent({
       if (!space.value || !selectedDoc.value) return
       savingMeta.value = true
       try {
-        const davPath = selectedDoc.value.resource.webDavPath
+        const davPath = '/dav' + selectedDoc.value.resource.webDavPath
         const props = Object.entries(docMetadata.value)
-          .map(([k, v]) => `<om:${k}>${v ?? ''}</om:${k}>`)
+          .map(([k, v]) => `<om:${k}>${v != null ? String(v) : ''}</om:${k}>`)
           .join('')
         const body = `<?xml version="1.0"?><d:propertyupdate xmlns:d="DAV:" xmlns:om="http://owncloud.org/ns/metadata"><d:set><d:prop>${props}</d:prop></d:set></d:propertyupdate>`
-        const davClient = (clientService.webdav as any).client
-        await davClient.request('PROPPATCH', davPath, { data: body })
+        const httpClient = (clientService as any).httpAuthenticated
+        await httpClient.request({ method: 'PROPPATCH', url: davPath, data: body, headers: { 'Content-Type': 'application/xml' } })
         showMessage({ title: 'Metadaten gespeichert' })
         editingMeta.value = false
       } catch {
