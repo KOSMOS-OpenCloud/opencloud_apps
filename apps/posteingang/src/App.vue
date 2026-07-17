@@ -38,9 +38,9 @@
           @assign="onAssign"
         />
         <MetadataPanel
-          v-if="selectedDoc && selectedDoc.resource.extraProps"
+          v-if="selectedDoc && Object.keys(docMetadata).length > 0"
           :schema="metaSchema"
-          :values="selectedDoc.resource.extraProps"
+          :values="docMetadata"
         />
       </aside>
     </div>
@@ -75,6 +75,7 @@ export default defineComponent({
     const loadingPdf = ref(false)
     const assigning = ref(false)
     const pdfUrl = ref('')
+    const docMetadata = ref<Record<string, any>>({})
 
     const space = computed<SpaceResource | undefined>(() => {
       return spacesStore.spaces.find(
@@ -164,10 +165,25 @@ export default defineComponent({
       loadingPdf.value = false
     }
 
+    async function loadMetadata(doc: DocumentEntry) {
+      if (!space.value) return
+      docMetadata.value = {}
+      try {
+        const driveId = space.value.id
+        const itemId = doc.resource.fileId || doc.resource.id
+        const httpClient = (clientService as any).httpAuthenticated
+        const res = await httpClient.get(`/graph/v1beta1/drives/${driveId}/items/${itemId}/metadata`)
+        docMetadata.value = res?.data || {}
+      } catch {
+        // no metadata available
+      }
+    }
+
     function onSelectDocument(doc: DocumentEntry) {
       selectedDoc.value = doc
       selectedTarget.value = ''
       loadPdfUrl(doc)
+      loadMetadata(doc)
     }
 
     async function onAssign() {
@@ -217,6 +233,7 @@ export default defineComponent({
       loadingPdf,
       assigning,
       pdfUrl,
+      docMetadata,
       onSelectDocument,
       onAssign
     }

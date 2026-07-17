@@ -2,7 +2,7 @@ import { defineWebApplication, useRouter, useSpacesStore } from '@opencloud-eu/w
 import translations from '../l10n/translations.json'
 import App from './App.vue'
 import { useGettext } from 'vue3-gettext'
-import { computed, markRaw } from 'vue'
+import { computed } from 'vue'
 
 const applicationId = 'posteingang'
 

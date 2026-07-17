@@ -52,13 +52,13 @@ export default defineComponent({
   },
   setup(props) {
     function getTopValue(key: string): any {
+      // flat dot-notation from Graph /metadata API
       return props.values?.[key]
     }
 
     function getValue(group: string, key: string): any {
-      const obj = props.values?.[group]
-      if (obj && typeof obj === 'object') return (obj as any)[key]
-      return null
+      // Graph API returns flat keys: "doc.subject", "sender.company"
+      return props.values?.[`${group}.${key}`] ?? null
     }
 
     function formatValue(val: any, prop: JsonSchemaProperty): string {
