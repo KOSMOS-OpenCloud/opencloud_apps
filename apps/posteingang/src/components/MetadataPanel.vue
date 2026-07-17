@@ -10,11 +10,11 @@
       <template v-for="(prop, key) in schema.properties" :key="key">
         <!-- Nested object (doc, sender) -->
         <fieldset v-if="prop.type === 'object' && prop.properties" class="meta-group">
-          <legend class="meta-group-legend">{{ key }}</legend>
+          <legend class="meta-group-legend">{{ translateKey(key as string) }}</legend>
           <div v-for="(childProp, childKey) in prop.properties" :key="childKey"
             class="meta-field" :class="{ 'meta-field--uncertain': isUncertain(key + '.' + childKey) }">
             <label class="meta-field-label">
-              {{ childKey }}
+              {{ translateKey(childKey as string) }}
               <span v-if="isUncertain(key + '.' + childKey)" class="meta-field-warn" title="Unsicher">?</span>
             </label>
             <div class="meta-field-value" :class="{ 'meta-field-value--empty': getValue(key, childKey) == null }">
@@ -25,7 +25,7 @@
 
         <!-- Array (uncertain) -->
         <div v-else-if="prop.type === 'array'" class="meta-field">
-          <label class="meta-field-label">{{ key }}</label>
+          <label class="meta-field-label">{{ translateKey(key as string) }}</label>
           <div class="meta-field-value" :class="{ 'meta-field-value--empty': !getTopValue(key)?.length }">
             {{ Array.isArray(getTopValue(key)) ? getTopValue(key).join(', ') : '\u2014' }}
           </div>
@@ -33,7 +33,7 @@
 
         <!-- Scalar (is_letterhead) -->
         <div v-else class="meta-field">
-          <label class="meta-field-label">{{ key }}</label>
+          <label class="meta-field-label">{{ translateKey(key as string) }}</label>
           <div class="meta-field-value" :class="{ 'meta-field-value--empty': getTopValue(key) == null }">
             {{ formatValue(getTopValue(key), prop) }}
           </div>
@@ -48,6 +48,7 @@
 
 <script lang="ts">
 import { defineComponent, PropType } from 'vue'
+import { useGettext } from 'vue3-gettext'
 import { JsonSchema, JsonSchemaProperty } from '../types'
 
 export default defineComponent({
@@ -59,6 +60,11 @@ export default defineComponent({
   },
   emits: ['reindex'],
   setup(props) {
+    const { $gettext } = useGettext()
+
+    function translateKey(key: string): string {
+      return $gettext(key.replace(/_/g, ' '))
+    }
     function getTopValue(key: string): any {
       return props.values?.[key]
     }
@@ -79,7 +85,7 @@ export default defineComponent({
       return Array.isArray(uncertain) && uncertain.includes(dotPath)
     }
 
-    return { getTopValue, getValue, formatValue, isUncertain }
+    return { getTopValue, getValue, formatValue, isUncertain, translateKey }
   }
 })
 </script>

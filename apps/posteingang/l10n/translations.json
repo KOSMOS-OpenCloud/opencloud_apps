@@ -1,1 +1,26 @@
-{}
+{
+  "de": {
+    "Posteingang": "Posteingang",
+    "doc": "Dokument",
+    "sender": "Absender",
+    "subject": "Betreff",
+    "subject inferred": "Betreff abgeleitet",
+    "type": "Typ",
+    "date": "Datum",
+    "reference": "Aktenzeichen",
+    "meta source": "Quelle",
+    "company": "Firma/Behoerde",
+    "given name": "Vorname",
+    "family name": "Nachname",
+    "street": "Strasse",
+    "house number": "Hausnummer",
+    "postal code": "PLZ",
+    "sub locality": "Ortsteil",
+    "city": "Ort",
+    "country": "Land",
+    "email": "E-Mail",
+    "phone": "Telefon",
+    "is letterhead": "Briefkopf",
+    "uncertain": "Unsicher"
+  }
+}
