@@ -16,9 +16,9 @@
     </div>
     <div v-if="schema && Object.keys(values).length > 0" class="meta-panel-scroll">
       <template v-for="(prop, key) in schema.properties" :key="key">
-        <fieldset v-if="prop.type === 'object' && prop.properties" class="meta-group">
+        <fieldset v-if="prop.type === 'object' && prop.properties && !isHidden(key as string)" class="meta-group">
           <legend class="meta-group-legend">{{ translateKey(key as string) }}</legend>
-          <div v-for="(childProp, childKey) in prop.properties" :key="childKey"
+          <div v-for="(childProp, childKey) in prop.properties" :key="childKey" v-show="!isHidden(childKey as string)"
             class="meta-field" :class="{ 'meta-field--uncertain': isUncertain(key + '.' + childKey) }">
             <label class="meta-field-label">
               {{ translateKey(childKey as string) }}
@@ -33,14 +33,14 @@
           </div>
         </fieldset>
 
-        <div v-else-if="prop.type === 'array'" class="meta-field">
+        <div v-else-if="prop.type === 'array' && !isHidden(key as string)" class="meta-field">
           <label class="meta-field-label">{{ translateKey(key as string) }}</label>
           <div class="meta-field-value" :class="{ 'meta-field-value--empty': !getTopValue(key)?.length }">
             {{ Array.isArray(getTopValue(key)) ? getTopValue(key).join(', ') : '\u2014' }}
           </div>
         </div>
 
-        <div v-else class="meta-field">
+        <div v-else-if="!isHidden(key as string)" class="meta-field">
           <label class="meta-field-label">{{ translateKey(key as string) }}</label>
           <input v-if="editing" class="meta-field-input"
             :value="getTopValue(key) || ''"
@@ -80,6 +80,12 @@ export default defineComponent({
   setup(props) {
     const { $gettext } = useGettext()
 
+    const hiddenFields = new Set(['is_letterhead', 'uncertain', 'subject_inferred', 'meta_source'])
+
+    function isHidden(key: string): boolean {
+      return hiddenFields.has(key)
+    }
+
     function translateKey(key: string): string {
       return $gettext(key.replace(/_/g, ' '))
     }
@@ -104,7 +110,7 @@ export default defineComponent({
       return Array.isArray(uncertain) && uncertain.includes(dotPath)
     }
 
-    return { getTopValue, getValue, formatValue, isUncertain, translateKey }
+    return { getTopValue, getValue, formatValue, isUncertain, isHidden, translateKey }
   }
 })
 </script>
