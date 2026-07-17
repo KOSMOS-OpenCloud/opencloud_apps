@@ -29,7 +29,8 @@ export default defineWebApplication({
       color: '#1565C0',
       spaceAlias: 'project/posteingang',
       appMode: true,
-      priority: 40
+      priority: 40,
+      routeName: 'posteingang'
     })
 
     const routes = [
