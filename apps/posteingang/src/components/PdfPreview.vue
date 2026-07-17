@@ -1,11 +1,11 @@
 <template>
   <div class="pdf-preview">
     <div v-if="loading" class="pdf-preview-loading">PDF wird geladen...</div>
-    <iframe
+    <object
       v-else-if="url"
-      :src="url"
-      class="pdf-preview-frame"
-      type="application/pdf"
+      :data="url"
+      :type="objectType"
+      class="pdf-preview-object"
     />
   </div>
 </template>
@@ -18,6 +18,12 @@ export default defineComponent({
   props: {
     url: { type: String, required: true },
     loading: { type: Boolean, default: false }
+  },
+  setup() {
+    const isSafari =
+      navigator.userAgent?.includes('Safari') && !navigator.userAgent?.includes('Chrome')
+    const objectType = isSafari ? undefined : 'application/pdf'
+    return { objectType }
   }
 })
 </script>
@@ -38,9 +44,10 @@ export default defineComponent({
   font-size: 14px;
 }
 
-.pdf-preview-frame {
+.pdf-preview-object {
   flex: 1;
   width: 100%;
-  border: none;
+  height: 100%;
+  overflow: hidden;
 }
 </style>

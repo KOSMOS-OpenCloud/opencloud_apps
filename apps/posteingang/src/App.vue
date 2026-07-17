@@ -153,12 +153,7 @@ export default defineComponent({
       if (!space.value) return
       loadingPdf.value = true
       try {
-        const response = await clientService.webdav.getFileContents(space.value, {
-          path: doc.resource.path
-        })
-        const blob = new Blob([response.body as ArrayBuffer], { type: 'application/pdf' })
-        if (pdfUrl.value) URL.revokeObjectURL(pdfUrl.value)
-        pdfUrl.value = URL.createObjectURL(blob)
+        pdfUrl.value = await clientService.webdav.getFileUrl(space.value, doc.resource)
       } catch {
         showErrorMessage({ title: 'PDF konnte nicht geladen werden' })
       }
