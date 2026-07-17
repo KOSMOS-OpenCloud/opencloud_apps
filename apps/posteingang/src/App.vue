@@ -154,7 +154,7 @@ export default defineComponent({
       loadingPdf.value = true
       try {
         console.log('[posteingang] loadPdfUrl resource:', doc.resource.name, doc.resource.path, doc.resource.webDavPath)
-        const url = await clientService.webdav.getFileUrl(space.value, doc.resource)
+        const url = await clientService.webdav.getFileUrl(space.value, doc.resource, { disposition: 'inline' })
         console.log('[posteingang] getFileUrl result:', url)
         pdfUrl.value = url
       } catch (err) {
