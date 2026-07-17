@@ -227,10 +227,12 @@ export default defineComponent({
 
 <style>
 .posteingang {
-  width: 100%;
-  height: 100%;
+  position: fixed;
+  inset: 0;
+  top: var(--oc-topbar-height, 52px);
   overflow: hidden;
   font-family: inherit;
+  z-index: 1;
 }
 
 .posteingang-layout {
