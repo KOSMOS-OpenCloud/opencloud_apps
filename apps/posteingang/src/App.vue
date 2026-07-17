@@ -235,13 +235,10 @@ export default defineComponent({
       if (!space.value || !selectedDoc.value) return
       savingMeta.value = true
       try {
-        const davPath = '/dav' + selectedDoc.value.resource.webDavPath
-        const props = Object.entries(docMetadata.value)
-          .map(([k, v]) => `<om:${k}>${v != null ? String(v) : ''}</om:${k}>`)
-          .join('')
-        const body = `<?xml version="1.0"?><d:propertyupdate xmlns:d="DAV:" xmlns:om="http://owncloud.org/ns/metadata"><d:set><d:prop>${props}</d:prop></d:set></d:propertyupdate>`
+        const driveId = space.value.id
+        const itemId = selectedDoc.value.resource.fileId || selectedDoc.value.resource.id
         const httpClient = (clientService as any).httpAuthenticated
-        await httpClient.request({ method: 'PROPPATCH', url: davPath, data: body, headers: { 'Content-Type': 'application/xml' } })
+        await httpClient.put(`/graph/v1beta1/drives/${driveId}/items/${itemId}/metadata`, docMetadata.value)
         showMessage({ title: 'Metadaten gespeichert' })
         editingMeta.value = false
       } catch {
@@ -254,12 +251,12 @@ export default defineComponent({
       if (!space.value || !selectedDoc.value) return
       reindexing.value = true
       try {
-        const resourceId = selectedDoc.value.resource.fileId || selectedDoc.value.resource.id
+        const driveId = space.value.id
+        const itemId = selectedDoc.value.resource.fileId || selectedDoc.value.resource.id
         const httpClient = (clientService as any).httpAuthenticated
-        await httpClient.post('/api/v0/search/index-item', { resource_id: resourceId })
+        await httpClient.post(`/graph/v1beta1/drives/${driveId}/items/${itemId}/reindex`)
         showMessage({ title: 'Reindex angestossen' })
-        // Reload metadata after a short delay to allow indexing
-        setTimeout(() => loadMetadata(selectedDoc.value!), 3000)
+        setTimeout(() => loadMetadata(selectedDoc.value!), 5000)
       } catch (err) {
         console.error('[posteingang] reindex error:', err)
         showErrorMessage({ title: 'Reindex fehlgeschlagen' })
