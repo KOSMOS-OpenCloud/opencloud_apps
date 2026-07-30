@@ -34,9 +34,11 @@
           :target-folders="config.targetFolders"
           :selected-target="selectedTarget"
           :assigning="assigning"
+          :deleting="deleting"
           :disabled="editingMeta"
           @select-target="selectedTarget = $event"
           @assign="onAssign"
+          @delete="onDelete"
         />
         <MetadataPanel
           v-if="selectedDoc"
@@ -83,6 +85,7 @@ export default defineComponent({
     const loadingList = ref(false)
     const loadingPdf = ref(false)
     const assigning = ref(false)
+    const deleting = ref(false)
     const reindexing = ref(false)
     const editingMeta = ref(false)
     const savingMeta = ref(false)
@@ -191,6 +194,17 @@ export default defineComponent({
       }
     }
 
+    function selectFirstOrNone() {
+      if (documents.value.length > 0) {
+        onSelectDocument(documents.value[0])
+      } else {
+        selectedDoc.value = null
+        selectedTarget.value = ''
+        pdfUrl.value = ''
+        docMetadata.value = {}
+      }
+    }
+
     function onSelectDocument(doc: DocumentEntry) {
       selectedDoc.value = doc
       selectedTarget.value = ''
@@ -217,16 +231,37 @@ export default defineComponent({
 
         showMessage({ title: `Zugewiesen an: ${target.label}` })
         documents.value = documents.value.filter(d => d !== selectedDoc.value)
-        selectedDoc.value = null
-        selectedTarget.value = ''
         if (pdfUrl.value) {
           URL.revokeObjectURL(pdfUrl.value)
           pdfUrl.value = ''
         }
+        selectFirstOrNone()
       } catch {
         showErrorMessage({ title: 'Zuweisung fehlgeschlagen' })
       }
       assigning.value = false
+    }
+
+    async function onDelete() {
+      if (!space.value || !selectedDoc.value) return
+
+      deleting.value = true
+      try {
+        await clientService.webdav.deleteFile(
+          space.value,
+          { path: selectedDoc.value.resource.path }
+        )
+        showMessage({ title: 'Dokument gelöscht' })
+        documents.value = documents.value.filter(d => d !== selectedDoc.value)
+        if (pdfUrl.value) {
+          URL.revokeObjectURL(pdfUrl.value)
+          pdfUrl.value = ''
+        }
+        selectFirstOrNone()
+      } catch {
+        showErrorMessage({ title: 'Löschen fehlgeschlagen' })
+      }
+      deleting.value = false
     }
 
     function onMetadataUpdate(key: string, value: string | null) {
@@ -303,6 +338,7 @@ export default defineComponent({
       await loadConfig()
       await loadMetaSchema()
       await loadDocuments()
+      selectFirstOrNone()
     })
 
     onBeforeUnmount(() => {
@@ -319,6 +355,7 @@ export default defineComponent({
       loadingList,
       loadingPdf,
       assigning,
+      deleting,
       pdfUrl,
       docMetadata,
       reindexing,
@@ -326,6 +363,7 @@ export default defineComponent({
       savingMeta,
       onSelectDocument,
       onAssign,
+      onDelete,
       onReindex,
       onMetadataUpdate,
       onSaveMetadata

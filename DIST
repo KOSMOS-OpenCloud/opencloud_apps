@@ -1,5 +1,5 @@
-HOST=cloud.os.brandis.parthe.cloud
-DATAPATH=/data/opencloud_podman
+HOST=cloud.brandis.eu
+TARGET=cloud_brandis
 
 # Upstream web-extensions repo (local checkout)
 WEB_EXTENSIONS_DIR="${WEB_EXTENSIONS_DIR:-/data/source/gitapps/web-extensions}"

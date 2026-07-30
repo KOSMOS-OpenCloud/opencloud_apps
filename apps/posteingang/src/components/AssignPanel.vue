@@ -35,6 +35,15 @@
     >
       {{ assigning ? $gettext('Wird zugewiesen...') : $gettext('Zuweisen') }}
     </oc-button>
+    <oc-button
+      class="delete-btn"
+      variation="danger"
+      appearance="outline"
+      :disabled="deleting || disabled"
+      @click="$emit('delete')"
+    >
+      {{ deleting ? $gettext('Wird gelöscht...') : $gettext('Löschen') }}
+    </oc-button>
   </div>
 </template>
 
@@ -49,9 +58,10 @@ export default defineComponent({
     targetFolders: { type: Array as PropType<TargetFolder[]>, required: true },
     selectedTarget: { type: String, default: '' },
     assigning: { type: Boolean, default: false },
+    deleting: { type: Boolean, default: false },
     disabled: { type: Boolean, default: false }
   },
-  emits: ['select-target', 'assign']
+  emits: ['select-target', 'assign', 'delete']
 })
 </script>
 
@@ -134,5 +144,10 @@ export default defineComponent({
 .assign-btn:disabled {
   background: #bbb;
   cursor: default;
+}
+
+.delete-btn {
+  width: 100%;
+  margin-top: 8px;
 }
 </style>
