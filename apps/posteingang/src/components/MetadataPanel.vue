@@ -80,7 +80,7 @@ export default defineComponent({
   setup(props) {
     const { $gettext } = useGettext()
 
-    const hiddenFields = new Set(['is_letterhead', 'uncertain', 'subject_inferred', 'meta_source'])
+    const hiddenFields = new Set(['uncertain', 'subject_inferred', 'meta_source', 'source', 'model'])
 
     function isHidden(key: string): boolean {
       return hiddenFields.has(key)

@@ -258,12 +258,28 @@ export default defineComponent({
         const httpClient = (clientService as any).httpAuthenticated
         await httpClient.post(`/graph/v1beta1/drives/${driveId}/items/${itemId}/reindex`)
         showMessage({ title: 'Reindex angestossen' })
-        setTimeout(() => loadMetadata(selectedDoc.value!), 5000)
+        // Poll for metadata (3s interval, max 60s)
+        const doc = selectedDoc.value
+        let elapsed = 0
+        const poll = setInterval(async () => {
+          elapsed += 3000
+          if (elapsed > 60000 || selectedDoc.value !== doc) {
+            clearInterval(poll)
+            reindexing.value = false
+            return
+          }
+          await loadMetadata(doc)
+          if (Object.keys(docMetadata.value).length > 0) {
+            clearInterval(poll)
+            reindexing.value = false
+            showMessage({ title: 'Metadaten aktualisiert' })
+          }
+        }, 3000)
       } catch (err) {
         console.error('[posteingang] reindex error:', err)
         showErrorMessage({ title: 'Reindex fehlgeschlagen' })
+        reindexing.value = false
       }
-      reindexing.value = false
     }
 
     // Ensure appMode is active while this app is mounted
