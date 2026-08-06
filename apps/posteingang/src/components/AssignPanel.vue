@@ -1,15 +1,15 @@
 <template>
   <div class="assign-panel">
     <h3 class="assign-panel-title">Zielordner</h3>
-    <div class="assign-panel-targets">
+    <div :class="['assign-panel-targets', { 'assign-panel-targets--compact': targetFolders.length > 4 }]">
       <button
         v-for="folder in targetFolders"
         :key="folder.id"
-        :class="['assign-target', { 'assign-target--selected': selectedTarget === folder.id }]"
+        :class="['assign-target', { 'assign-target--selected': selectedTarget === folder.id, 'assign-target--compact': targetFolders.length > 4 }]"
         @click="$emit('select-target', folder.id)"
         :title="folder.label"
       >
-        <span class="assign-target-icon">
+        <span v-if="targetFolders.length <= 4" class="assign-target-icon">
           <svg v-if="folder.icon === 'money'" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M2 10h2m16 0h2M2 14h2m16 0h2"/>
           </svg>
@@ -87,6 +87,11 @@ export default defineComponent({
   margin-bottom: 12px;
 }
 
+.assign-panel-targets--compact {
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
 .assign-target {
   display: flex;
   flex-direction: column;
@@ -122,6 +127,16 @@ export default defineComponent({
   font-size: 12px;
   font-weight: 500;
   text-align: center;
+}
+
+.assign-target--compact {
+  flex-direction: row;
+  padding: 8px 6px;
+  gap: 0;
+}
+
+.assign-target--compact .assign-target-label {
+  font-size: 11px;
 }
 
 .assign-btn {
