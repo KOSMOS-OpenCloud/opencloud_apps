@@ -328,7 +328,7 @@ export default defineComponent({
         const driveId = space.value.id
         const itemId = selectedDoc.value.resource.fileId || selectedDoc.value.resource.id
         const httpClient = (clientService as any).httpAuthenticated
-        await httpClient.post(`/graph/v1beta1/drives/${driveId}/items/${itemId}/reindex`)
+        await httpClient.post(`/graph/v1beta1/drives/${driveId}/items/${itemId}/reindex?overwrite=true`)
         showMessage({ title: 'Reindex angestossen' })
         // Poll for metadata (3s interval, max 60s)
         const doc = selectedDoc.value
