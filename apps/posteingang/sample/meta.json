@@ -1,27 +1,42 @@
 {
   "type": "object",
   "additionalProperties": false,
-  "required": ["is_letterhead", "doc", "sender", "uncertain"],
+  "required": ["doc", "sender", "uncertain"],
   "properties": {
-    "is_letterhead": { "type": "boolean" },
     "doc": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["subject", "subject_inferred", "type", "date", "reference"],
+      "required": ["title", "subject", "subject_inferred", "type", "date", "reference", "valid_from", "valid_till"],
       "properties": {
+        "title": { "type": ["string", "null"] },
         "subject": { "type": ["string", "null"] },
         "subject_inferred": { "type": "boolean" },
         "type": {
           "type": ["string", "null"],
-          "enum": ["rechnung", "bescheid", "antrag", "angebot",
-                   "mahnung", "vertrag", "kuendigung", "mitteilung",
-                   "einladung", "sonstiges", null]
+          "enum": [
+            "brief", "bescheid", "verfuegung", "satzung", "niederschrift",
+            "antrag", "vertrag", "mitteilung", "einladung", "kuendigung", "angebot",
+            "rechnung", "lieferschein", "kontoauszug", "kassenbon", "ec_bon",
+            "mahnung", "gutschrift",
+            "urkunde", "zeugnis",
+            "sicknote",
+            "foto", "skizze", "tabelle", "praesentation", "email",
+            "sonstiges", null
+          ]
         },
         "date": {
           "type": ["string", "null"],
           "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
         },
-        "reference": { "type": ["string", "null"] }
+        "reference": { "type": ["string", "null"] },
+        "valid_from": {
+          "type": ["string", "null"],
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        },
+        "valid_till": {
+          "type": ["string", "null"],
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
+        }
       }
     },
     "sender": {
@@ -42,6 +57,45 @@
         "country":      { "type": ["string", "null"], "pattern": "^[A-Z]{2}$" },
         "email":        { "type": ["string", "null"] },
         "phone":        { "type": ["string", "null"] }
+      }
+    },
+    "recipient": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["company", "given_name", "family_name"],
+      "properties": {
+        "company":      { "type": ["string", "null"] },
+        "given_name":   { "type": ["string", "null"] },
+        "family_name":  { "type": ["string", "null"] }
+      }
+    },
+    "issuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["company", "given_name", "family_name", "street",
+                   "house_number", "postal_code", "city", "country",
+                   "phone"],
+      "properties": {
+        "company":      { "type": ["string", "null"] },
+        "given_name":   { "type": ["string", "null"] },
+        "family_name":  { "type": ["string", "null"] },
+        "street":       { "type": ["string", "null"] },
+        "house_number": { "type": ["string", "null"] },
+        "postal_code":  { "type": ["string", "null"] },
+        "city":         { "type": ["string", "null"] },
+        "country":      { "type": ["string", "null"], "pattern": "^[A-Z]{2}$" },
+        "phone":        { "type": ["string", "null"] }
+      }
+    },
+    "amounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "tax", "currency", "payment_due"],
+      "properties": {
+        "total":       { "type": ["string", "null"] },
+        "tax":         { "type": ["string", "null"] },
+        "currency":    { "type": ["string", "null"], "pattern": "^[A-Z]{3}$" },
+        "payment_due": { "type": ["string", "null"], "pattern": "^\\d{4}-\\d{2}-\\d{2}$" }
       }
     },
     "uncertain": {
