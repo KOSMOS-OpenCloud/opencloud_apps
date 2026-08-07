@@ -119,7 +119,7 @@ export default defineComponent({
       for (const name of [`${username}.conf`, 'default.conf']) {
         try {
           const response = await clientService.webdav.getFileContents(space.value, {
-            path: `/.inbox/${name}`
+            path: `/.inbox/${name}?t=${Date.now()}`
           })
           config.value = { ...DEFAULT_CONFIG, ...JSON.parse(readText(response.body)) }
           break
@@ -134,7 +134,7 @@ export default defineComponent({
       if (!space.value) return
       try {
         const response = await clientService.webdav.getFileContents(space.value, {
-          path: '/.inbox/meta.json'
+          path: `/.inbox/meta.json?t=${Date.now()}`
         })
         metaSchema.value = JSON.parse(readText(response.body)) as JsonSchema
       } catch {
@@ -189,7 +189,7 @@ export default defineComponent({
         const driveId = space.value.id
         const itemId = doc.resource.fileId || doc.resource.id
         const httpClient = (clientService as any).httpAuthenticated
-        const res = await httpClient.get(`/graph/v1beta1/drives/${driveId}/items/${itemId}/metadata`)
+        const res = await httpClient.get(`/graph/v1beta1/drives/${driveId}/items/${itemId}/metadata?t=${Date.now()}`)
         docMetadata.value = res?.data || {}
       } catch {
         // no metadata available
