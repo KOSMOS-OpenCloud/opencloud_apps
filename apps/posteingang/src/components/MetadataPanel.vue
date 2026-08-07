@@ -82,12 +82,46 @@ export default defineComponent({
 
     const hiddenFields = new Set(['uncertain', 'subject_inferred', 'meta_source', 'source', 'model'])
 
+    const translations: Record<string, string> = {
+      // Groups
+      doc: $gettext('Dokument'),
+      sender: $gettext('Absender'),
+      recipient: $gettext('Empfänger'),
+      issuer: $gettext('Aussteller'),
+      amounts: $gettext('Beträge'),
+      // doc fields
+      title: $gettext('Titel'),
+      subject: $gettext('Betreff'),
+      type: $gettext('Typ'),
+      date: $gettext('Datum'),
+      reference: $gettext('Aktenzeichen'),
+      valid_from: $gettext('Gültig ab'),
+      valid_till: $gettext('Gültig bis'),
+      // sender/recipient/issuer fields
+      company: $gettext('Firma'),
+      given_name: $gettext('Vorname'),
+      family_name: $gettext('Nachname'),
+      street: $gettext('Straße'),
+      house_number: $gettext('Hausnummer'),
+      postal_code: $gettext('PLZ'),
+      sub_locality: $gettext('Ortsteil'),
+      city: $gettext('Ort'),
+      country: $gettext('Land'),
+      email: $gettext('E-Mail'),
+      phone: $gettext('Telefon'),
+      // amounts fields
+      total: $gettext('Gesamt'),
+      tax: $gettext('Steuer'),
+      currency: $gettext('Währung'),
+      payment_due: $gettext('Fällig am'),
+    }
+
     function isHidden(key: string): boolean {
       return hiddenFields.has(key)
     }
 
     function translateKey(key: string): string {
-      return $gettext(key.replace(/_/g, ' '))
+      return translations[key] || key.replace(/_/g, ' ')
     }
 
     function getTopValue(key: string): any {
