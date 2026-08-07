@@ -215,6 +215,37 @@ export default defineComponent({
       loadMetadata(doc)
     }
 
+    /** PROPFIND Depth:1 on target folder to warm up IDCache before MOVE */
+    async function warmupTarget(targetPath: string) {
+      try {
+        await clientService.webdav.listFiles(space.value!, { path: targetPath })
+      } catch {
+        // ignore — if the folder doesn't exist, MOVE will fail with a clear error
+      }
+    }
+
+    async function doAssign(destName: string, target: TargetFolder) {
+      const sourcePath = selectedDoc.value!.resource.path
+      const targetPath = `/${target.path}/${destName}`
+
+      // Warm up IDCache for target folder (prevents 409 on MOVE)
+      await warmupTarget(`/${target.path}`)
+
+      await clientService.webdav.moveFiles(
+        space.value!,
+        { path: sourcePath },
+        space.value!,
+        { path: targetPath }
+      )
+
+      documents.value = documents.value.filter(d => d !== selectedDoc.value)
+      if (pdfUrl.value) {
+        URL.revokeObjectURL(pdfUrl.value)
+        pdfUrl.value = ''
+      }
+      selectFirstOrNone()
+    }
+
     async function onAssign() {
       if (!space.value || !selectedDoc.value || !selectedTarget.value) return
       const target = config.value.targetFolders.find(t => t.id === selectedTarget.value)
@@ -222,22 +253,8 @@ export default defineComponent({
 
       assigning.value = true
       try {
-        const sourcePath = selectedDoc.value.resource.path
-        const targetPath = `/${target.path}/${selectedDoc.value.resource.name}`
-        await clientService.webdav.moveFiles(
-          space.value,
-          { path: sourcePath },
-          space.value,
-          { path: targetPath }
-        )
-
+        await doAssign(selectedDoc.value.resource.name, target)
         showMessage({ title: `Zugewiesen an: ${target.label}` })
-        documents.value = documents.value.filter(d => d !== selectedDoc.value)
-        if (pdfUrl.value) {
-          URL.revokeObjectURL(pdfUrl.value)
-          pdfUrl.value = ''
-        }
-        selectFirstOrNone()
       } catch (err: any) {
         const detail = err?.statusCode ? `${err.statusCode} ${err.message || ''}`.trim() : (err?.message || '')
         showErrorMessage({ title: `Zuweisung fehlgeschlagen${detail ? ': ' + detail : ''}` })
@@ -252,25 +269,11 @@ export default defineComponent({
 
       assigning.value = true
       try {
-        const sourcePath = selectedDoc.value.resource.path
         const docTitle = docMetadata.value?.['doc.title']
         const ext = selectedDoc.value.resource.name.replace(/^.*(\.[^.]+)$/, '$1') || '.pdf'
         const destName = docTitle ? `${docTitle}${ext}` : selectedDoc.value.resource.name
-        const targetPath = `/${target.path}/${destName}`
-        await clientService.webdav.moveFiles(
-          space.value,
-          { path: sourcePath },
-          space.value,
-          { path: targetPath }
-        )
-
+        await doAssign(destName, target)
         showMessage({ title: `Zugewiesen an: ${target.label}${docTitle ? ' als ' + destName : ''}` })
-        documents.value = documents.value.filter(d => d !== selectedDoc.value)
-        if (pdfUrl.value) {
-          URL.revokeObjectURL(pdfUrl.value)
-          pdfUrl.value = ''
-        }
-        selectFirstOrNone()
       } catch (err: any) {
         const detail = err?.statusCode ? `${err.statusCode} ${err.message || ''}`.trim() : (err?.message || '')
         showErrorMessage({ title: `Zuweisung fehlgeschlagen${detail ? ': ' + detail : ''}` })
