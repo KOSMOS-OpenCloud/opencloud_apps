@@ -119,7 +119,7 @@ export default defineComponent({
       for (const name of [`${username}.conf`, 'default.conf']) {
         try {
           const response = await clientService.webdav.getFileContents(space.value, {
-            path: `/.inbox/${name}?t=${Date.now()}`
+            path: `/.inbox/${name}`
           })
           config.value = { ...DEFAULT_CONFIG, ...JSON.parse(readText(response.body)) }
           break
@@ -134,7 +134,7 @@ export default defineComponent({
       if (!space.value) return
       try {
         const response = await clientService.webdav.getFileContents(space.value, {
-          path: `/.inbox/meta.json?t=${Date.now()}`
+          path: '/.inbox/meta.json'
         })
         metaSchema.value = JSON.parse(readText(response.body)) as JsonSchema
       } catch {
