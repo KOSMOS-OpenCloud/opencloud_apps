@@ -239,7 +239,7 @@ export default defineComponent({
         }
         selectFirstOrNone()
       } catch (err: any) {
-        const detail = err?.response?.statusText || err?.message || ''
+        const detail = err?.statusCode ? `${err.statusCode} ${err.message || ''}`.trim() : (err?.message || '')
         showErrorMessage({ title: `Zuweisung fehlgeschlagen${detail ? ': ' + detail : ''}` })
       }
       assigning.value = false
@@ -272,7 +272,7 @@ export default defineComponent({
         }
         selectFirstOrNone()
       } catch (err: any) {
-        const detail = err?.response?.statusText || err?.message || ''
+        const detail = err?.statusCode ? `${err.statusCode} ${err.message || ''}`.trim() : (err?.message || '')
         showErrorMessage({ title: `Zuweisung fehlgeschlagen${detail ? ': ' + detail : ''}` })
       }
       assigning.value = false
@@ -295,7 +295,7 @@ export default defineComponent({
         }
         selectFirstOrNone()
       } catch (err: any) {
-        const detail = err?.response?.statusText || err?.message || ''
+        const detail = err?.statusCode ? `${err.statusCode} ${err.message || ''}`.trim() : (err?.message || '')
         showErrorMessage({ title: `Löschen fehlgeschlagen${detail ? ': ' + detail : ''}` })
       }
       deleting.value = false
