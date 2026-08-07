@@ -26,15 +26,28 @@
         <span class="assign-target-label">{{ folder.label }}</span>
       </button>
     </div>
-    <oc-button
-      class="assign-btn"
-      variation="primary"
-      appearance="filled"
-      :disabled="!selectedTarget || assigning || disabled"
-      @click="$emit('assign')"
-    >
-      {{ assigning ? $gettext('Wird zugewiesen...') : $gettext('Zuweisen') }}
-    </oc-button>
+    <div class="assign-btn-group">
+      <oc-button
+        class="assign-btn"
+        variation="primary"
+        appearance="filled"
+        :disabled="!selectedTarget || assigning || disabled"
+        @click="$emit('assign')"
+      >
+        {{ assigning ? $gettext('Wird zugewiesen...') : $gettext('Zuweisen') }}
+      </oc-button>
+      <oc-button
+        v-if="hasDocTitle"
+        class="assign-btn assign-btn--rename"
+        variation="primary"
+        appearance="outline"
+        :disabled="!selectedTarget || assigning || disabled"
+        @click="$emit('assign-rename')"
+        :title="$gettext('Zuweisen und nach Dokumenttitel umbenennen')"
+      >
+        {{ $gettext('Zuweisen+') }}
+      </oc-button>
+    </div>
     <oc-button
       class="delete-btn"
       variation="danger"
@@ -59,9 +72,10 @@ export default defineComponent({
     selectedTarget: { type: String, default: '' },
     assigning: { type: Boolean, default: false },
     deleting: { type: Boolean, default: false },
-    disabled: { type: Boolean, default: false }
+    disabled: { type: Boolean, default: false },
+    hasDocTitle: { type: Boolean, default: false }
   },
-  emits: ['select-target', 'assign', 'delete']
+  emits: ['select-target', 'assign', 'assign-rename', 'delete']
 })
 </script>
 
@@ -139,8 +153,13 @@ export default defineComponent({
   font-size: 11px;
 }
 
+.assign-btn-group {
+  display: flex;
+  gap: 6px;
+}
+
 .assign-btn {
-  width: 100%;
+  flex: 1;
   padding: 10px;
   background: #1565c0;
   color: #fff;
@@ -150,6 +169,10 @@ export default defineComponent({
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s;
+}
+
+.assign-btn--rename {
+  flex: 0 0 auto;
 }
 
 .assign-btn:hover:not(:disabled) {

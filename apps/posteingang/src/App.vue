@@ -38,6 +38,8 @@
           :disabled="editingMeta"
           @select-target="selectedTarget = $event"
           @assign="onAssign"
+          @assign-rename="onAssignRename"
+          :has-doc-title="!!docMetadata?.['doc.title']"
           @delete="onDelete"
         />
         <MetadataPanel
@@ -236,8 +238,42 @@ export default defineComponent({
           pdfUrl.value = ''
         }
         selectFirstOrNone()
-      } catch {
-        showErrorMessage({ title: 'Zuweisung fehlgeschlagen' })
+      } catch (err: any) {
+        const detail = err?.response?.statusText || err?.message || ''
+        showErrorMessage({ title: `Zuweisung fehlgeschlagen${detail ? ': ' + detail : ''}` })
+      }
+      assigning.value = false
+    }
+
+    async function onAssignRename() {
+      if (!space.value || !selectedDoc.value || !selectedTarget.value) return
+      const target = config.value.targetFolders.find(t => t.id === selectedTarget.value)
+      if (!target) return
+
+      assigning.value = true
+      try {
+        const sourcePath = selectedDoc.value.resource.path
+        const docTitle = docMetadata.value?.['doc.title']
+        const ext = selectedDoc.value.resource.name.replace(/^.*(\.[^.]+)$/, '$1') || '.pdf'
+        const destName = docTitle ? `${docTitle}${ext}` : selectedDoc.value.resource.name
+        const targetPath = `/${target.path}/${destName}`
+        await clientService.webdav.moveFiles(
+          space.value,
+          { path: sourcePath },
+          space.value,
+          { path: targetPath }
+        )
+
+        showMessage({ title: `Zugewiesen an: ${target.label}${docTitle ? ' als ' + destName : ''}` })
+        documents.value = documents.value.filter(d => d !== selectedDoc.value)
+        if (pdfUrl.value) {
+          URL.revokeObjectURL(pdfUrl.value)
+          pdfUrl.value = ''
+        }
+        selectFirstOrNone()
+      } catch (err: any) {
+        const detail = err?.response?.statusText || err?.message || ''
+        showErrorMessage({ title: `Zuweisung fehlgeschlagen${detail ? ': ' + detail : ''}` })
       }
       assigning.value = false
     }
@@ -258,8 +294,9 @@ export default defineComponent({
           pdfUrl.value = ''
         }
         selectFirstOrNone()
-      } catch {
-        showErrorMessage({ title: 'Löschen fehlgeschlagen' })
+      } catch (err: any) {
+        const detail = err?.response?.statusText || err?.message || ''
+        showErrorMessage({ title: `Löschen fehlgeschlagen${detail ? ': ' + detail : ''}` })
       }
       deleting.value = false
     }
@@ -363,6 +400,7 @@ export default defineComponent({
       savingMeta,
       onSelectDocument,
       onAssign,
+      onAssignRename,
       onDelete,
       onReindex,
       onMetadataUpdate,
