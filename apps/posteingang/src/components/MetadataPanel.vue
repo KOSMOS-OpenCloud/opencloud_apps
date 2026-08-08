@@ -97,6 +97,9 @@ export default defineComponent({
       reference: $gettext('Aktenzeichen'),
       valid_from: $gettext('Gültig ab'),
       valid_till: $gettext('Gültig bis'),
+      store: $gettext('Ermitteltes AZ'),
+      storeReason: $gettext('AZ Begründung'),
+      store_alternative: $gettext('Ermitteltes alt. AZ'),
       // sender/recipient/issuer fields
       company: $gettext('Firma'),
       given_name: $gettext('Vorname'),

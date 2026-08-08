@@ -6,7 +6,7 @@
     "doc": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["title", "subject", "subject_inferred", "type", "date", "reference", "valid_from", "valid_till"],
+      "required": ["title", "subject", "subject_inferred", "type", "date", "reference", "valid_from", "valid_till", "store", "storeReason"],
       "properties": {
         "title": { "type": ["string", "null"] },
         "subject": { "type": ["string", "null"] },
@@ -29,6 +29,9 @@
           "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
         },
         "reference": { "type": ["string", "null"] },
+        "store": { "type": ["string", "null"] },
+        "storeReason": { "type": ["string", "null"] },
+        "store_alternative": { "type": ["string", "null"] },
         "valid_from": {
           "type": ["string", "null"],
           "pattern": "^\\d{4}-\\d{2}-\\d{2}$"
