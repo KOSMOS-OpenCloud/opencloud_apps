@@ -1,6 +1,12 @@
 {
   "_comment": "Aktenzeichen -> Zielordner-ID (laengstes Praefix gewinnt)",
   "fallback": "interne_services",
+  "typeRoutes": {
+    "sicknote": "interne_services",
+    "rechnung": "interne_services",
+    "mahnung": "interne_services",
+    "gutschrift": "interne_services"
+  },
   "routes": {
     "11": "interne_services",
     "61": "interne_services",

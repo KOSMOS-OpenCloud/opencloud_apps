@@ -231,12 +231,25 @@ export default defineComponent({
       } catch {
         // no metadata available
       }
-      // Auto-select target folder based on doc.store routing
-      const store = docMetadata.value?.['doc.store']
-      if (store && routing.value) {
-        const targetId = resolveRouting(store)
-        if (targetId) {
-          selectedTarget.value = targetId
+      // Auto-select target folder based on routing
+      if (routing.value) {
+        // 1. Try doc.type routing (e.g. sicknote → interne_services)
+        const docType = docMetadata.value?.['doc.type']
+        const typeRoutes = routing.value.typeRoutes || {}
+        if (docType && typeRoutes[docType]) {
+          const targetId = typeRoutes[docType]
+          if (config.value.targetFolders.some(t => t.id === targetId)) {
+            selectedTarget.value = targetId
+            return
+          }
+        }
+        // 2. Try doc.store AZ routing (longest prefix match)
+        const store = docMetadata.value?.['doc.store']
+        if (store) {
+          const targetId = resolveRouting(store)
+          if (targetId) {
+            selectedTarget.value = targetId
+          }
         }
       }
     }
