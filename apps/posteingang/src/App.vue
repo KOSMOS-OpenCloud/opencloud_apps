@@ -233,12 +233,16 @@ export default defineComponent({
       }
       // Auto-select target folder based on routing
       if (routing.value) {
+        const configIds = config.value.targetFolders.map(t => t.id)
+        console.log('[posteingang] routing: available targets:', configIds)
+
         // 1. Try doc.type routing (e.g. sicknote → interne_services)
         const docType = docMetadata.value?.['doc.type']
         const typeRoutes = routing.value.typeRoutes || {}
         if (docType && typeRoutes[docType]) {
           const targetId = typeRoutes[docType]
-          if (config.value.targetFolders.some(t => t.id === targetId)) {
+          console.log('[posteingang] routing: doc.type=%s → targetId=%s, exists=%s', docType, targetId, configIds.includes(targetId))
+          if (configIds.includes(targetId)) {
             selectedTarget.value = targetId
             return
           }
@@ -247,10 +251,16 @@ export default defineComponent({
         const store = docMetadata.value?.['doc.store']
         if (store) {
           const targetId = resolveRouting(store)
+          console.log('[posteingang] routing: doc.store=%s → targetId=%s', store, targetId)
           if (targetId) {
             selectedTarget.value = targetId
           }
         }
+        if (!selectedTarget.value) {
+          console.log('[posteingang] routing: no match for doc.type=%s doc.store=%s', docMetadata.value?.['doc.type'], docMetadata.value?.['doc.store'])
+        }
+      } else {
+        console.log('[posteingang] routing: no routing.json loaded')
       }
     }
 
