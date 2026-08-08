@@ -81,6 +81,7 @@ export default defineComponent({
 
     const config = ref<PosteingangConfig>({ ...DEFAULT_CONFIG })
     const metaSchema = ref<JsonSchema | null>(null)
+    const routing = ref<{ fallback: string; routes: Record<string, string> } | null>(null)
     const documents = ref<DocumentEntry[]>([])
     const selectedDoc = ref<DocumentEntry | null>(null)
     const selectedTarget = ref<string>('')
@@ -142,6 +143,42 @@ export default defineComponent({
       }
     }
 
+    /** Load .inbox/routing.json — AZ prefix → target folder mapping */
+    async function loadRouting() {
+      if (!space.value) return
+      try {
+        const response = await clientService.webdav.getFileContents(space.value, {
+          path: '/.inbox/routing.json'
+        })
+        routing.value = JSON.parse(readText(response.body))
+      } catch {
+        routing.value = null
+      }
+    }
+
+    /** Resolve doc.store AZ to a target folder ID via routing.json (longest prefix match) */
+    function resolveRouting(store: string): string | null {
+      if (!routing.value || !store) return null
+      const parts = store.replace(/\./g, '.').split('.')
+      // Try longest prefix first: "11.13.05" → "11.13" → "11"
+      for (let len = parts.length; len > 0; len--) {
+        const prefix = parts.slice(0, len).join('.')
+        const targetId = routing.value.routes[prefix]
+        if (targetId) {
+          // Check if this target exists in the config
+          if (config.value.targetFolders.some(t => t.id === targetId)) {
+            return targetId
+          }
+        }
+      }
+      // Fallback
+      const fb = routing.value.fallback
+      if (fb && config.value.targetFolders.some(t => t.id === fb)) {
+        return fb
+      }
+      return null
+    }
+
     async function loadDocuments() {
       if (!space.value) return
       loadingList.value = true
@@ -193,6 +230,14 @@ export default defineComponent({
         docMetadata.value = res?.data || {}
       } catch {
         // no metadata available
+      }
+      // Auto-select target folder based on doc.store routing
+      const store = docMetadata.value?.['doc.store']
+      if (store && routing.value) {
+        const targetId = resolveRouting(store)
+        if (targetId) {
+          selectedTarget.value = targetId
+        }
       }
     }
 
@@ -377,6 +422,7 @@ export default defineComponent({
       }
       await loadConfig()
       await loadMetaSchema()
+      await loadRouting()
       await loadDocuments()
       selectFirstOrNone()
     })
