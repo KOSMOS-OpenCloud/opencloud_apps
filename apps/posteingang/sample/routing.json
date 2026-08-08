@@ -1,17 +1,17 @@
 {
   "_comment": "Aktenzeichen -> Zielordner-ID (laengstes Praefix gewinnt)",
-  "fallback": "interne_services",
+  "fallback": "interne-service",
   "typeRoutes": {
-    "sicknote": "interne_services",
-    "rechnung": "interne_services",
-    "mahnung": "interne_services",
-    "gutschrift": "interne_services"
+    "sicknote": "interne-service",
+    "rechnung": "interne-service",
+    "mahnung": "interne-service",
+    "gutschrift": "interne-service"
   },
   "routes": {
-    "11": "interne_services",
-    "61": "interne_services",
-    "81": "interne_services",
-    "12.11": "interne_services",
+    "11": "interne-service",
+    "61": "interne-service",
+    "81": "interne-service",
+    "12.11": "interne-service",
 
     "21": "buergerservices",
     "22": "buergerservices",
@@ -32,19 +32,19 @@
     "42": "buergerservices",
     "12.22": "buergerservices",
 
-    "51": "bau_und_ordnung",
-    "52": "bau_und_ordnung",
-    "53": "bau_und_ordnung",
-    "54": "bau_und_ordnung",
-    "55": "bau_und_ordnung",
-    "56": "bau_und_ordnung",
-    "57": "bau_und_ordnung",
-    "71": "bau_und_ordnung",
-    "99": "bau_und_ordnung",
-    "12.21": "bau_und_ordnung",
-    "12.60": "bau_und_ordnung",
-    "12.80": "bau_und_ordnung",
-    "11.13.05": "bau_und_ordnung",
-    "11.16.14": "bau_und_ordnung"
+    "51": "bau-und-ordnung",
+    "52": "bau-und-ordnung",
+    "53": "bau-und-ordnung",
+    "54": "bau-und-ordnung",
+    "55": "bau-und-ordnung",
+    "56": "bau-und-ordnung",
+    "57": "bau-und-ordnung",
+    "71": "bau-und-ordnung",
+    "99": "bau-und-ordnung",
+    "12.21": "bau-und-ordnung",
+    "12.60": "bau-und-ordnung",
+    "12.80": "bau-und-ordnung",
+    "11.13.05": "bau-und-ordnung",
+    "11.16.14": "bau-und-ordnung"
   }
 }

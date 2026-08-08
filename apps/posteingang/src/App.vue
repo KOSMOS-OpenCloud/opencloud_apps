@@ -156,27 +156,17 @@ export default defineComponent({
       }
     }
 
-    /** Resolve doc.store AZ to a target folder ID via routing.json (longest prefix match) */
+    /** Resolve doc.store AZ to a route ID via routing.json (longest prefix match) */
     function resolveRouting(store: string): string | null {
       if (!routing.value || !store) return null
-      const parts = store.replace(/\./g, '.').split('.')
+      const parts = store.split('.')
       // Try longest prefix first: "11.13.05" → "11.13" → "11"
       for (let len = parts.length; len > 0; len--) {
         const prefix = parts.slice(0, len).join('.')
-        const targetId = routing.value.routes[prefix]
-        if (targetId) {
-          // Check if this target exists in the config
-          if (config.value.targetFolders.some(t => t.id === targetId)) {
-            return targetId
-          }
-        }
+        const routeId = routing.value.routes[prefix]
+        if (routeId) return routeId
       }
-      // Fallback
-      const fb = routing.value.fallback
-      if (fb && config.value.targetFolders.some(t => t.id === fb)) {
-        return fb
-      }
-      return null
+      return routing.value.fallback || null
     }
 
     async function loadDocuments() {
@@ -236,24 +226,33 @@ export default defineComponent({
         const configIds = config.value.targetFolders.map(t => t.id)
         console.log('[posteingang] routing: available targets:', configIds)
 
-        // 1. Try doc.type routing (e.g. sicknote → interne_services)
+        // Match route target ID against config — try exact, then with fb- prefix
+        const findTarget = (routeId: string): string | null => {
+          if (configIds.includes(routeId)) return routeId
+          const prefixed = `fb-${routeId}`
+          if (configIds.includes(prefixed)) return prefixed
+          return null
+        }
+
+        // 1. Try doc.type routing (e.g. sicknote → interne-service)
         const docType = docMetadata.value?.['doc.type']
         const typeRoutes = routing.value.typeRoutes || {}
         if (docType && typeRoutes[docType]) {
-          const targetId = typeRoutes[docType]
-          console.log('[posteingang] routing: doc.type=%s → targetId=%s, exists=%s', docType, targetId, configIds.includes(targetId))
-          if (configIds.includes(targetId)) {
-            selectedTarget.value = targetId
+          const matched = findTarget(typeRoutes[docType])
+          console.log('[posteingang] routing: doc.type=%s → route=%s → target=%s', docType, typeRoutes[docType], matched)
+          if (matched) {
+            selectedTarget.value = matched
             return
           }
         }
         // 2. Try doc.store AZ routing (longest prefix match)
         const store = docMetadata.value?.['doc.store']
         if (store) {
-          const targetId = resolveRouting(store)
-          console.log('[posteingang] routing: doc.store=%s → targetId=%s', store, targetId)
-          if (targetId) {
-            selectedTarget.value = targetId
+          const routeId = resolveRouting(store)
+          const matched = routeId ? findTarget(routeId) : null
+          console.log('[posteingang] routing: doc.store=%s → route=%s → target=%s', store, routeId, matched)
+          if (matched) {
+            selectedTarget.value = matched
           }
         }
         if (!selectedTarget.value) {
