@@ -1,0 +1,891 @@
+<template>
+  <div class="photo-map-wrapper">
+    <div class="photo-map-container">
+      <div
+        ref="mapContainer"
+        class="map-element"
+        tabindex="0"
+        role="application"
+        :aria-label="$gettext('Photo locations map. Use arrow keys to pan, plus and minus to zoom.')"
+      ></div>
+      <div v-if="photosWithGps === 0" class="no-gps-overlay">
+        <span class="no-gps-icon" aria-hidden="true"><svg fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M18.364 17.364L12 23.728L5.636 17.364C2.121 13.849 2.121 8.151 5.636 4.636C9.151 1.121 14.849 1.121 18.364 4.636C21.879 8.151 21.879 13.849 18.364 17.364ZM12 13C13.105 13 14 12.105 14 11C14 9.895 13.105 9 12 9C10.895 9 10 9.895 10 11C10 12.105 10.895 13 12 13Z" /></svg></span>
+        <p>{{ $gettext('No photos with GPS data found') }}</p>
+      </div>
+      <div class="map-stats">
+        {{ $gettext('%{visible} of %{total} photos in view').replace('%{visible}', String(visiblePhotosInView.length)).replace('%{total}', String(photosWithGps)) }}
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import L from 'leaflet'
+import 'leaflet/dist/leaflet.css'  // Bundle CSS instead of CDN (CSP blocks external stylesheets)
+import type { PhotoWithDate } from '../types'
+import { useTranslations } from '../composables/useTranslations'
+
+// Initialize translations
+const { $gettext, getUserLocale } = useTranslations()
+
+// Use PhotoWithDate from types (aliased for clarity in this component)
+type PhotoWithLocation = PhotoWithDate
+
+const props = withDefaults(defineProps<{
+  photos: PhotoWithLocation[]
+  getThumbnailUrl: (photo: PhotoWithLocation) => string
+  prefetchThumbnails?: (photos: PhotoWithLocation[]) => void
+  defaultCenter?: [number, number]
+  defaultZoom?: number
+}>(), {
+  prefetchThumbnails: undefined,
+  defaultCenter: () => [56, -96],  // Canada default (configurable via props)
+  defaultZoom: 4
+})
+
+const emit = defineEmits<{
+  (e: 'photo-click', photo: PhotoWithLocation, group: PhotoWithLocation[]): void
+  (e: 'visible-count-change', visibleCount: number, totalCount: number): void
+}>()
+
+const mapContainer = ref<HTMLElement | null>(null)
+let map: L.Map | null = null
+let resizeObserver: ResizeObserver | null = null
+let hadStoredPosition = false  // Track if we restored from localStorage
+let activeTooltip: HTMLElement | null = null  // Track active tooltip for cleanup
+
+/**
+ * Escape HTML special characters for safe text content.
+ * Uses the browser's built-in escaping via textContent → innerHTML.
+ */
+function escapeHtml(str: string): string {
+  const div = document.createElement('div')
+  div.textContent = str
+  return div.innerHTML
+}
+
+/**
+ * Escape HTML special characters for use in attributes.
+ * More comprehensive than escapeHtml to handle attribute context.
+ */
+function escapeAttr(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
+// Visible photos in current viewport
+const visiblePhotosInView = ref<PhotoWithLocation[]>([])
+
+// LocalStorage keys for map position persistence
+const STORAGE_KEY_MAP_CENTER = 'photo-addon:map-center'
+const STORAGE_KEY_MAP_ZOOM = 'photo-addon:map-zoom'
+
+// Get stored map position
+function getStoredMapPosition(): { center: [number, number], zoom: number } | null {
+  try {
+    const centerStr = localStorage.getItem(STORAGE_KEY_MAP_CENTER)
+    const zoomStr = localStorage.getItem(STORAGE_KEY_MAP_ZOOM)
+    if (centerStr && zoomStr) {
+      const center = JSON.parse(centerStr) as [number, number]
+      const zoom = parseInt(zoomStr, 10)
+      if (Array.isArray(center) && center.length === 2 && !isNaN(zoom)) {
+        return { center, zoom }
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return null
+}
+
+// Save map position to localStorage
+function saveMapPosition() {
+  if (!map) return
+  try {
+    const center = map.getCenter()
+    const zoom = map.getZoom()
+    localStorage.setItem(STORAGE_KEY_MAP_CENTER, JSON.stringify([center.lat, center.lng]))
+    localStorage.setItem(STORAGE_KEY_MAP_ZOOM, String(zoom))
+  } catch {
+    // ignore
+  }
+}
+
+// Count photos with GPS (total)
+const photosWithGps = computed(() => {
+  return props.photos.filter(photo => {
+    const loc = photo.graphPhoto?.location
+    return loc?.latitude != null && loc?.longitude != null
+  }).length
+})
+
+// Update visible photos based on current map bounds
+function updateVisiblePhotos() {
+  if (!map) {
+    visiblePhotosInView.value = []
+    return
+  }
+
+  const bounds = map.getBounds()
+  const visible = props.photos.filter(photo => {
+    const loc = photo.graphPhoto?.location
+    if (loc?.latitude == null || loc?.longitude == null) return false
+    return bounds.contains([loc.latitude, loc.longitude])
+  })
+
+  visiblePhotosInView.value = visible
+  emit('visible-count-change', visible.length, photosWithGps.value)
+}
+
+// Cluster photos by geographic proximity
+interface PhotoCluster {
+  photos: PhotoWithLocation[]
+  centerLat: number
+  centerLng: number
+  representativePhoto: PhotoWithLocation // Most recent photo in cluster
+}
+
+/**
+ * Calculate grid size based on zoom level for zoom-dependent clustering.
+ * At any zoom level, photos within ~40 pixels of each other on screen should cluster.
+ *
+ * Formula: gridSize = 60 / 2^zoom
+ * - Zoom 2 (world):  ~15° — entire countries merge
+ * - Zoom 5 (region):  ~1.9° — nearby cities merge
+ * - Zoom 10 (city):   ~0.06° — ~6km
+ * - Zoom 15 (street): ~0.002° — ~200m
+ * - Zoom 18 (house):  ~0.0002° — ~25m
+ */
+function getGridSizeForZoom(zoom: number): number {
+  return 60 / Math.pow(2, zoom)
+}
+
+/**
+ * Cluster photos by geographic proximity using a spatial grid algorithm.
+ * Grid size adapts to zoom level so clusters merge/split as user zooms.
+ *
+ * @param photos - Array of photos with GPS coordinates
+ * @param gridSize - Grid cell size in degrees (zoom-dependent)
+ * @returns Array of photo clusters with center coordinates and representative photo
+ */
+function clusterPhotos(photos: PhotoWithLocation[], gridSize: number): PhotoCluster[] {
+  const photosWithLocation = photos.filter(p =>
+    p.graphPhoto?.location?.latitude != null &&
+    p.graphPhoto?.location?.longitude != null
+  )
+
+  if (photosWithLocation.length === 0) return []
+
+  // Build spatial grid - O(n): each photo assigned to one cell
+  const grid = new Map<string, PhotoWithLocation[]>()
+  for (const photo of photosWithLocation) {
+    const lat = photo.graphPhoto!.location!.latitude!
+    const lng = photo.graphPhoto!.location!.longitude!
+    const gridKey = `${Math.floor(lat / gridSize)},${Math.floor(lng / gridSize)}`
+
+    if (!grid.has(gridKey)) grid.set(gridKey, [])
+    grid.get(gridKey)!.push(photo)
+  }
+
+  // Convert grid cells to clusters
+  const clusters: PhotoCluster[] = []
+
+  for (const [, cellPhotos] of grid) {
+    // Sort by date to select most recent as representative (shown in marker)
+    const photosWithTime = cellPhotos.map(p => ({
+      photo: p,
+      timestamp: p.graphPhoto?.takenDateTime ? new Date(p.graphPhoto.takenDateTime).getTime() : 0
+    }))
+    photosWithTime.sort((a, b) => b.timestamp - a.timestamp)
+    const sortedPhotos = photosWithTime.map(pt => pt.photo)
+
+    // Calculate centroid (average position) for marker placement
+    let sumLat = 0, sumLng = 0
+    for (const p of sortedPhotos) {
+      sumLat += p.graphPhoto!.location!.latitude!
+      sumLng += p.graphPhoto!.location!.longitude!
+    }
+
+    clusters.push({
+      photos: sortedPhotos,
+      centerLat: sumLat / sortedPhotos.length,
+      centerLng: sumLng / sortedPhotos.length,
+      representativePhoto: sortedPhotos[0]  // Most recent photo shown in popup
+    })
+  }
+
+  return clusters
+}
+
+// Inject critical CSS overrides (must be global, not scoped)
+function injectTileFixCSS() {
+  if (document.getElementById('leaflet-tile-fix')) return
+
+  const style = document.createElement('style')
+  style.id = 'leaflet-tile-fix'
+  style.textContent = `
+    /* === Leaflet CSS Fixes for oCIS Photo Addon === */
+
+    /* The map container needs absolute positioning to work properly */
+    .photo-map-container .leaflet-container {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      width: auto !important;
+      height: auto !important;
+      overflow: hidden !important;
+      background: var(--oc-color-background-muted, #ddd) !important;
+    }
+
+    /* Panes need absolute positioning with base coordinates */
+    .leaflet-pane,
+    .leaflet-map-pane,
+    .leaflet-tile-pane {
+      position: absolute !important;
+      left: 0 !important;
+      top: 0 !important;
+    }
+
+    /* Tile container - holds grid of tiles */
+    .leaflet-tile-container {
+      position: absolute !important;
+      left: 0 !important;
+      top: 0 !important;
+      display: block !important;
+    }
+
+    /* Individual tiles - positioned via transforms by Leaflet */
+    .leaflet-tile {
+      position: absolute !important;
+      display: block !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      border: none !important;
+    }
+
+    /* Tile images - slightly oversized to prevent gap bug */
+    .leaflet-tile-container img.leaflet-tile {
+      width: 256.5px !important;
+      height: 256.5px !important;
+      max-width: none !important;
+      max-height: none !important;
+    }
+
+    /* Overlay pane for markers - needs proper z-index and transforms */
+    .leaflet-overlay-pane {
+      z-index: 400 !important;
+    }
+    .leaflet-overlay-pane svg {
+      overflow: visible !important;
+      pointer-events: auto !important;
+    }
+    .leaflet-overlay-pane svg path {
+      pointer-events: auto !important;
+      cursor: pointer !important;
+    }
+    .leaflet-interactive {
+      pointer-events: auto !important;
+      cursor: pointer !important;
+    }
+    .leaflet-marker-pane {
+      z-index: 600 !important;
+    }
+    .leaflet-tooltip-pane {
+      z-index: 650 !important;
+    }
+    .leaflet-popup-pane {
+      z-index: 700 !important;
+    }
+
+    /* Zoom animation - markers must follow map transforms */
+    .leaflet-zoom-animated {
+      transform-origin: 0 0 !important;
+    }
+
+    /* Wrapper constraint - fill parent and clip the map */
+    .photo-map-wrapper {
+      position: absolute !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      overflow: hidden !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      box-sizing: border-box !important;
+      z-index: 0 !important; /* Stay below oCIS header dropdowns */
+    }
+
+    .photo-map-container {
+      position: relative !important;
+      width: 100% !important;
+      height: 100% !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      box-sizing: border-box !important;
+    }
+
+    /* Parent container in PhotosView - needs relative for absolute children */
+    .map-view-container {
+      position: relative !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      box-sizing: border-box !important;
+    }
+
+    /* Photo thumbnail tooltip styles - disable Leaflet animations */
+    .photo-marker-tooltip {
+      padding: 0 !important;
+      border: none !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      transition: none !important;
+      opacity: 1 !important;
+    }
+    .photo-marker-tooltip.leaflet-tooltip {
+      transition: none !important;
+    }
+    .leaflet-tooltip {
+      transition: none !important;
+    }
+    .photo-marker-tooltip .leaflet-tooltip-content {
+      margin: 0 !important;
+    }
+    /* Remove tooltip arrow */
+    .photo-marker-tooltip::before {
+      display: none !important;
+    }
+    .map-photo-tooltip {
+      background: var(--oc-color-background-default, #fff);
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      overflow: hidden;
+      min-width: 120px;
+      max-width: 180px;
+    }
+    .map-photo-tooltip img {
+      width: 100%;
+      height: 100px;
+      object-fit: cover;
+      display: block;
+      background: var(--oc-color-background-muted, #f0f0f0);
+    }
+    .map-photo-tooltip .tooltip-info {
+      padding: 8px;
+      text-align: center;
+    }
+    .map-photo-tooltip .tooltip-name {
+      display: block;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--oc-color-text-default, #333);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .map-photo-tooltip .tooltip-date {
+      display: block;
+      font-size: 11px;
+      color: var(--oc-color-text-muted, #666);
+      margin-top: 2px;
+    }
+    .map-photo-tooltip .tooltip-count {
+      display: inline-block;
+      background: var(--oc-color-swatch-warning-default, #e65100);
+      color: var(--oc-color-text-inverse, #fff);
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 10px;
+      margin-bottom: 4px;
+    }
+  `
+  document.head.appendChild(style)
+}
+
+function initMap() {
+  if (!mapContainer.value) {
+    return
+  }
+
+  // Check for stored map position first
+  const storedPosition = getStoredMapPosition()
+
+  let center: L.LatLngExpression
+  let initialZoom: number
+
+  if (storedPosition) {
+    // Use stored position
+    center = storedPosition.center
+    initialZoom = storedPosition.zoom
+    hadStoredPosition = true
+  } else {
+    hadStoredPosition = false
+    // Find center from photos with GPS, or default to Canada
+    const photosWithLocation = props.photos.filter(p =>
+      p.graphPhoto?.location?.latitude != null &&
+      p.graphPhoto?.location?.longitude != null
+    )
+
+    center = props.defaultCenter
+    initialZoom = props.defaultZoom
+
+    if (photosWithLocation.length > 0) {
+      const first = photosWithLocation[0]
+      center = [
+        first.graphPhoto!.location!.latitude!,
+        first.graphPhoto!.location!.longitude!
+      ]
+      initialZoom = 6
+    }
+  }
+
+  // Create map with INTEGER zoom to minimize gap issues
+  // maxBounds prevents panning beyond one world map
+  map = L.map(mapContainer.value, {
+    center: center,
+    zoom: initialZoom,
+    zoomSnap: 1,      // Force integer zoom levels only
+    zoomDelta: 1,     // Zoom by whole levels
+    wheelPxPerZoomLevel: 120, // Require more scroll for zoom
+    maxBounds: [[-90, -180], [90, 180]],
+    maxBoundsViscosity: 1.0,
+    minZoom: 2,
+  })
+
+  // Save position, update visible photos, and prefetch thumbnails when map moves or zooms
+  map.on('moveend', () => {
+    saveMapPosition()
+    updateVisiblePhotos()
+    prefetchVisibleClusters()
+  })
+  map.on('zoomend', () => {
+    saveMapPosition()
+    updateVisiblePhotos()
+    refreshMarkersForZoom()
+    prefetchVisibleClusters()
+  })
+
+  // OSM tile servers require a Referer header. Ensure referrer policy allows it.
+  let metaReferrer = document.querySelector('meta[name="referrer"]') as HTMLMetaElement | null
+  if (!metaReferrer) {
+    metaReferrer = document.createElement('meta')
+    metaReferrer.name = 'referrer'
+    metaReferrer.content = 'no-referrer-when-downgrade'
+    document.head.appendChild(metaReferrer)
+  } else if (metaReferrer.content === 'no-referrer' || metaReferrer.content === 'same-origin') {
+    // Temporarily relax for OSM tiles — restored on unmount
+    metaReferrer.dataset.originalContent = metaReferrer.content
+    metaReferrer.content = 'no-referrer-when-downgrade'
+  }
+
+  // Tile layer with referrer policy fix and retry on 403
+  const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 19,
+    keepBuffer: 2,
+    noWrap: true,
+  }).addTo(map)
+
+  // Set referrer policy on each tile and retry on failure
+  tileLayer.on('tileloadstart', (event: L.TileEvent) => {
+    const tile = event.tile as HTMLImageElement
+    tile.referrerPolicy = 'no-referrer-when-downgrade'
+  })
+  tileLayer.on('tileerror', (event: L.TileErrorEvent) => {
+    const tile = event.tile as HTMLImageElement
+    if (!tile.dataset.retried) {
+      tile.dataset.retried = '1'
+      const src = tile.src
+      setTimeout(() => { tile.src = src }, 500)
+    }
+  })
+
+  // Add photo markers
+  addPhotoMarkers()
+
+  // Force layout recalculation after CSS applies
+  setTimeout(() => {
+    if (map && mapContainer.value) {
+      map.invalidateSize()
+    }
+  }, 100)
+}
+
+// Store clusters for viewport-based prefetching
+let allClusters: PhotoCluster[] = []
+let lastClusterZoom = -1  // Track zoom to avoid unnecessary reclustering
+let markerLayer: L.LayerGroup | null = null  // Layer group for easy marker management
+
+/**
+ * Prefetch thumbnails only for clusters visible in the current viewport.
+ * This avoids loading all 48+ thumbnails when only 5 are visible on screen.
+ */
+function prefetchVisibleClusters() {
+  if (!map || !props.prefetchThumbnails || allClusters.length === 0) return
+
+  const mapBounds = map.getBounds()
+  const visibleRepresentatives = allClusters
+    .filter(c => mapBounds.contains([c.centerLat, c.centerLng]))
+    .map(c => c.representativePhoto)
+
+  if (visibleRepresentatives.length > 0) {
+    props.prefetchThumbnails(visibleRepresentatives)
+  }
+}
+
+/**
+ * Recluster and redraw markers when zoom changes.
+ * Only reclusters if the zoom level actually changed.
+ */
+function refreshMarkersForZoom() {
+  if (!map) return
+  const zoom = map.getZoom()
+  if (zoom === lastClusterZoom) return
+  lastClusterZoom = zoom
+
+  // Remove old markers
+  if (markerLayer) {
+    markerLayer.clearLayers()
+  }
+
+  addPhotoMarkers()
+}
+
+function addPhotoMarkers() {
+  if (!map) return
+
+  const zoom = map.getZoom()
+  const gridSize = getGridSizeForZoom(zoom)
+  lastClusterZoom = zoom
+
+  // Cluster photos by geographic proximity (zoom-dependent)
+  const clusters = clusterPhotos(props.photos, gridSize)
+  allClusters = clusters  // Store for viewport-based prefetching
+
+  if (clusters.length === 0) return
+
+  // Initial prefetch for visible clusters only
+  prefetchVisibleClusters()
+
+  // Create layer group for markers (allows easy clearing on recluster)
+  if (!markerLayer) {
+    markerLayer = L.layerGroup().addTo(map)
+  }
+
+  const bounds = L.latLngBounds([])
+
+  for (const cluster of clusters) {
+    const { photos, centerLat, centerLng, representativePhoto } = cluster
+    const photoCount = photos.length
+
+    // Use circle markers with size based on cluster size
+    const radius = photoCount > 1 ? Math.min(10 + Math.log2(photoCount) * 3, 20) : 10
+    const marker = L.circleMarker([centerLat, centerLng], {
+      radius: radius,
+      fillColor: photoCount > 1 ? '#e65100' : '#0070c0', // Orange for clusters, blue for single
+      color: '#ffffff',
+      weight: 2,
+      opacity: 1,
+      fillOpacity: 0.8,
+      interactive: true,
+      bubblingMouseEvents: false,
+    })
+
+    // Use representative photo (most recent) for tooltip
+    const photo = representativePhoto
+    const dateStr = photo.graphPhoto?.takenDateTime
+      ? new Date(photo.graphPhoto.takenDateTime).toLocaleDateString(getUserLocale())
+      : ''
+
+    // Escape content for safe HTML rendering
+    const safeName = escapeHtml(photo.name || '')
+    const safeDateStr = dateStr ? escapeHtml(dateStr) : ''
+    const countBadge = photoCount > 1 ? `<span class="tooltip-count">${photoCount} photos</span>` : ''
+
+    // Helper to build tooltip HTML with current thumbnail URL (properly escaped)
+    const buildTooltipHtml = () => {
+      const currentUrl = props.getThumbnailUrl(photo)
+      const safeSrc = escapeAttr(currentUrl)
+      return `<div class="map-photo-tooltip">
+        <img src="${safeSrc}" alt="${escapeAttr(photo.name || '')}">
+        <div class="tooltip-info">
+          ${countBadge}
+          <span class="tooltip-name">${safeName}</span>
+          ${safeDateStr ? `<span class="tooltip-date">${safeDateStr}</span>` : ''}
+        </div>
+      </div>`
+    }
+
+    // Show tooltip based on quadrant - opposite corner from mouse
+    const gap = 15
+    marker.on('mouseover', () => {
+      // Remove any existing tooltip using ref
+      if (activeTooltip) {
+        activeTooltip.remove()
+        activeTooltip = null
+      }
+
+      // Get map container bounds
+      const container = mapContainer.value
+      if (!container) return
+      const rect = container.getBoundingClientRect()
+
+      // Get marker screen position
+      const markerPoint = map!.latLngToContainerPoint(marker.getLatLng())
+      const markerScreenX = rect.left + markerPoint.x
+      const markerScreenY = rect.top + markerPoint.y
+
+      // Determine which quadrant marker is in
+      const inTopHalf = markerPoint.y < rect.height / 2
+      const inLeftHalf = markerPoint.x < rect.width / 2
+
+      // Create tooltip and track via ref
+      const tooltip = document.createElement('div')
+      tooltip.id = 'map-center-tooltip'
+      tooltip.innerHTML = buildTooltipHtml()
+      tooltip.style.position = 'fixed'
+      tooltip.style.zIndex = '9999'
+
+      // Position in opposite quadrant from marker
+      if (inTopHalf && inLeftHalf) {
+        // Marker top-left → tooltip bottom-right of marker
+        tooltip.style.left = (markerScreenX + radius + gap) + 'px'
+        tooltip.style.top = (markerScreenY + radius + gap) + 'px'
+      } else if (inTopHalf && !inLeftHalf) {
+        // Marker top-right → tooltip bottom-left of marker
+        tooltip.style.right = (window.innerWidth - markerScreenX + radius + gap) + 'px'
+        tooltip.style.top = (markerScreenY + radius + gap) + 'px'
+      } else if (!inTopHalf && inLeftHalf) {
+        // Marker bottom-left → tooltip top-right of marker
+        tooltip.style.left = (markerScreenX + radius + gap) + 'px'
+        tooltip.style.bottom = (window.innerHeight - markerScreenY + radius + gap) + 'px'
+      } else {
+        // Marker bottom-right → tooltip top-left of marker
+        tooltip.style.right = (window.innerWidth - markerScreenX + radius + gap) + 'px'
+        tooltip.style.bottom = (window.innerHeight - markerScreenY + radius + gap) + 'px'
+      }
+
+      activeTooltip = tooltip
+      document.body.appendChild(tooltip)
+    })
+
+    marker.on('mouseout', () => {
+      if (activeTooltip) {
+        activeTooltip.remove()
+        activeTooltip = null
+      }
+    })
+
+    // Handle click - dismiss tooltip first (touch devices fire mouseover but not mouseout)
+    marker.on('click', () => {
+      if (activeTooltip) {
+        activeTooltip.remove()
+        activeTooltip = null
+      }
+      emit('photo-click', representativePhoto, photos)
+    })
+
+    marker.addTo(markerLayer!)
+    bounds.extend([centerLat, centerLng])
+  }
+
+  // Fit to show all markers ONLY if we don't have a stored position
+  if (bounds.isValid() && !hadStoredPosition) {
+    map.fitBounds(bounds, {
+      padding: [50, 50],
+      maxZoom: 12
+    })
+  }
+
+  // Update visible photos count after markers are added
+  updateVisiblePhotos()
+}
+
+// Watch for photo changes
+watch(() => props.photos, () => {
+  if (map) {
+    if (markerLayer) {
+      markerLayer.clearLayers()
+    }
+    lastClusterZoom = -1  // Force recluster
+    addPhotoMarkers()
+  }
+}, { deep: true })
+
+/**
+ * Keyboard handler for map navigation (accessibility).
+ * - '+' or '=' : Zoom in
+ * - '-' : Zoom out
+ * - Arrow keys : Pan the map
+ * - '0' : Reset to default zoom
+ */
+function handleMapKeydown(event: KeyboardEvent) {
+  if (!map) return
+
+  // Don't intercept if user is typing in an input field
+  const target = event.target as HTMLElement
+  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+    return
+  }
+
+  const PAN_AMOUNT = 100 // pixels to pan per key press
+
+  switch (event.key) {
+    case '+':
+    case '=':
+      event.preventDefault()
+      map.zoomIn()
+      break
+    case '-':
+      event.preventDefault()
+      map.zoomOut()
+      break
+    case '0':
+      event.preventDefault()
+      map.setZoom(props.defaultZoom)
+      break
+    case 'ArrowUp':
+      event.preventDefault()
+      map.panBy([0, -PAN_AMOUNT])
+      break
+    case 'ArrowDown':
+      event.preventDefault()
+      map.panBy([0, PAN_AMOUNT])
+      break
+    case 'ArrowLeft':
+      event.preventDefault()
+      map.panBy([-PAN_AMOUNT, 0])
+      break
+    case 'ArrowRight':
+      event.preventDefault()
+      map.panBy([PAN_AMOUNT, 0])
+      break
+  }
+}
+
+onMounted(() => {
+  injectTileFixCSS()
+  // Small delay for CSS to apply
+  setTimeout(initMap, 50)
+
+  // Set up resize observer to handle dynamic container resizing
+  if (mapContainer.value) {
+    resizeObserver = new ResizeObserver(() => {
+      if (map) {
+        map.invalidateSize()
+      }
+    })
+    resizeObserver.observe(mapContainer.value)
+  }
+
+  // Add keyboard listener for map navigation (+, -, arrows, 0)
+  document.addEventListener('keydown', handleMapKeydown)
+})
+
+onUnmounted(() => {
+  // Remove keyboard listener
+  document.removeEventListener('keydown', handleMapKeydown)
+
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+    resizeObserver = null
+  }
+  if (map) {
+    map.remove()
+    map = null
+  }
+  // Clean up any orphaned tooltips using tracked ref
+  if (activeTooltip) {
+    activeTooltip.remove()
+    activeTooltip = null
+  }
+  // Restore original referrer policy if we changed it
+  const metaRef = document.querySelector('meta[name="referrer"]') as HTMLMetaElement | null
+  if (metaRef?.dataset.originalContent) {
+    metaRef.content = metaRef.dataset.originalContent
+    delete metaRef.dataset.originalContent
+  }
+  // Clean up injected CSS (only if no other PhotoMap instances)
+  // Note: We leave the CSS in place since it's idempotent and shared
+  // Removing it could break other instances if multiple PhotoMaps exist
+})
+</script>
+
+<style scoped>
+/* Outer wrapper - fills parent container via absolute positioning */
+.photo-map-wrapper {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  background: var(--oc-color-background-muted, #e0e0e0);
+}
+
+/* Inner container - positioning context for the map */
+.photo-map-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* Map element - Leaflet adds classes here */
+.map-element {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.no-gps-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  background: var(--oc-color-background-default, #fff);
+  padding: 2rem 3rem;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  z-index: 450;
+}
+
+.no-gps-icon {
+  display: block;
+  margin-bottom: 1rem;
+  color: var(--oc-color-text-muted, #666);
+}
+
+.no-gps-icon svg {
+  width: 3rem;
+  height: 3rem;
+}
+
+.no-gps-overlay p {
+  margin: 0;
+  color: var(--oc-color-text-muted, #666);
+}
+
+.map-stats {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  background: var(--oc-color-background-default, #fff);
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: var(--oc-color-text-default, #333);
+  z-index: 450;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+</style>
