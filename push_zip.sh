@@ -2,18 +2,20 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-. "$SCRIPT_DIR/DIST"
+[ -f "$SCRIPT_DIR/DIST" ] && . "$SCRIPT_DIR/DIST"
 
-REGISTRY="codeberg.org"
 OWNER="${PUSH_ORG:-kosmos-eu}"
+REPO="${REPO:-opencloud_apps}"
 TAG="${TAG:-$(date +%Y%m%d-%H%M)}"
 BUILD_DIR="$SCRIPT_DIR/dist"
+REGISTRY="${PUSH_REGISTRY:-codeberg}"
 
-# Token
-if [ -z "${CODEBERG_TOKEN:-}" ] && [ -f ~/.codeberg-token ]; then
-    CODEBERG_TOKEN="$(cat ~/.codeberg-token)"
+# Token: PACKAGES_TOKEN > PUSH_TOKEN > CODEBERG_TOKEN > ~/.codeberg-token
+TOKEN="${PACKAGES_TOKEN:-${PUSH_TOKEN:-${CODEBERG_TOKEN:-}}}"
+if [ -z "$TOKEN" ] && [ -f ~/.codeberg-token ]; then
+    TOKEN="$(cat ~/.codeberg-token)"
 fi
-: "${CODEBERG_TOKEN:?Set CODEBERG_TOKEN or create ~/.codeberg-token}"
+: "${TOKEN:?Set PACKAGES_TOKEN or PUSH_TOKEN in DIST}"
 
 # Build
 if [ -z "${SKIP_BUILD:-}" ]; then
@@ -31,20 +33,38 @@ for app in $APPS; do
     PACKAGE="${app}-web"
     TMPZIP="/tmp/${PACKAGE}-${TAG}.zip"
     rm -f "$TMPZIP"
-
     (cd "$APP_DIR" && zip -qr "$TMPZIP" .)
-    UPLOAD_URL="https://${REGISTRY}/api/packages/${OWNER}/generic/${PACKAGE}/${TAG}/${PACKAGE}.zip"
-    echo "[push] ${PACKAGE}:${TAG}"
-    curl -sf -X PUT "$UPLOAD_URL" \
-        -H "Authorization: token ${CODEBERG_TOKEN}" \
-        --upload-file "$TMPZIP" && echo "  OK" || echo "  FAILED"
 
-    # Also push as latest
-    LATEST_URL="https://${REGISTRY}/api/packages/${OWNER}/generic/${PACKAGE}/latest/${PACKAGE}.zip"
-    curl -sf -X DELETE "$LATEST_URL" -H "Authorization: token ${CODEBERG_TOKEN}" -o /dev/null 2>/dev/null || true
-    curl -sf -X PUT "$LATEST_URL" -H "Authorization: token ${CODEBERG_TOKEN}" --upload-file "$TMPZIP"
+    case "$REGISTRY" in
+        github)
+            echo "[push] ${PACKAGE}:${TAG} -> GitHub Release ${OWNER}/${REPO}"
+            RELEASE=$(curl -sf -X POST "https://api.github.com/repos/${OWNER}/${REPO}/releases" \
+                -H "Authorization: token ${TOKEN}" \
+                -H "Content-Type: application/json" \
+                -d "{\"tag_name\":\"pkg-${TAG}-${app}\",\"name\":\"${PACKAGE} ${TAG}\",\"draft\":false}" 2>/dev/null)
+            RELEASE_ID=$(echo "$RELEASE" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+            curl -sf -X POST "https://uploads.github.com/repos/${OWNER}/${REPO}/releases/${RELEASE_ID}/assets?name=${PACKAGE}.zip" \
+                -H "Authorization: token ${TOKEN}" \
+                -H "Content-Type: application/zip" \
+                --data-binary "@${TMPZIP}" > /dev/null
+            echo "  OK (pkg-${TAG}-${app})"
+            ;;
+        *)
+            REGISTRY_HOST="${REGISTRY}.org"
+            [[ "$REGISTRY" == *"."* ]] && REGISTRY_HOST="$REGISTRY"
+            UPLOAD_URL="https://${REGISTRY_HOST}/api/packages/${OWNER}/generic/${PACKAGE}/${TAG}/${PACKAGE}.zip"
+            echo "[push] ${PACKAGE}:${TAG}"
+            curl -sf -X PUT "$UPLOAD_URL" \
+                -H "Authorization: token ${TOKEN}" \
+                --upload-file "$TMPZIP" && echo "  OK" || echo "  FAILED"
+            # Also push as latest
+            LATEST_URL="https://${REGISTRY_HOST}/api/packages/${OWNER}/generic/${PACKAGE}/latest/${PACKAGE}.zip"
+            curl -sf -X DELETE "$LATEST_URL" -H "Authorization: token ${TOKEN}" -o /dev/null 2>/dev/null || true
+            curl -sf -X PUT "$LATEST_URL" -H "Authorization: token ${TOKEN}" --upload-file "$TMPZIP" > /dev/null
+            ;;
+    esac
 
     rm -f "$TMPZIP"
 done
 
-echo "=== Pushed (tag: $TAG) ==="
+echo "=== Pushed $APPS (tag: $TAG, registry: $REGISTRY) ==="
