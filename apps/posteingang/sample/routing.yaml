@@ -1,0 +1,80 @@
+# =============================================================
+#  Aktenzeichen -> Fachbereich   (nur Posteingangs-App)
+# =============================================================
+#  Quelle:  ausgelesene Volume-Baeume Brandis
+#  NICHT aus der VwV abgeleitet -- der reale Baum weicht ab
+#  (Beispiel: 53.10 ist hier Gebaeudemanagement, in der VwV
+#   waere es Elektrizitaetsversorgung).
+#
+#  Aufloesung: laengstes passendes Praefix gewinnt
+#              6-Steller  >  4-Steller  >  2-Steller  >  auffang
+#
+#  Bereiche duerfen als Spanne "21-42" notiert werden;
+#  der Loader expandiert sie zu 21,22,...,42.
+# =============================================================
+
+auffang: interne_services
+
+
+# -------------------------------------------------------------
+#  INTERNE SERVICES
+# -------------------------------------------------------------
+interne_services:
+  name: Interne Services
+
+  bereiche:
+    "11": Innere Verwaltung
+    "61": Allgemeine Finanzwirtschaft        # ? Kaemmerei
+    "81": Lohnverrechnung                    # ? kein Produktrahmen-Code
+
+  gruppen:
+    "12.11": Statistik und Wahlen            # ? aus 12 herausgeloest
+
+
+# -------------------------------------------------------------
+#  BUERGERSERVICES
+# -------------------------------------------------------------
+buergerservices:
+  name: Buergerservices
+
+  bereiche:
+    "21-24": Schultraegeraufgaben
+    "25-29": Kultur und Wissenschaft
+    "31-35": Soziale Hilfen
+    "36":    Kinder-, Jugend- und Familienhilfe
+    "41":    Gesundheitsdienste
+    "42":    Sportfoerderung
+
+  gruppen:
+    "12.22": Melde- und Personenstandswesen  # ? aus 12 herausgeloest
+
+
+# -------------------------------------------------------------
+#  BAU UND ORDNUNG
+# -------------------------------------------------------------
+bau_und_ordnung:
+  name: Bau und Ordnung
+
+  bereiche:
+    "51": Raeumliche Planung und Entwicklung
+    "52": Bau- und Grundstuecksordnung
+    "53": Ver- und Entsorgung / Gebaeudemanagement
+    "54": Verkehrsflaechen und -anlagen, OEPNV
+    "55": Natur- und Landschaftspflege
+    "56": Umweltschutz
+    "57": Wirtschaft und Tourismus           # ? ggf. Hauptamt
+    "71": Katastrophenschutz, Hochwasser     # ? Dublette zu 12.80
+    "99": Archikart DMS                      # ? ueberwiegend Bau/FM
+
+  gruppen:
+    "12.21": Ordnungsaufgaben, Gefahrenabwehr, Verkehr   # ?
+    "12.60": Brandschutz                                 # ?
+    "12.80": Katastrophenschutz                          # ?
+
+  untergruppen:
+    # die einzigen zwei Stellen, an denen der 4-Steller nicht reicht
+    "11.13.05": Grundvermoegen, Liegenschaften, Gebaeudemanagement   # ? haengt unter Finanzverwaltung
+    "11.16.14": Baubetriebshof                                      # ? haengt unter Zentrale Einrichtungen
+
+
+

@@ -27,8 +27,8 @@
             <template #status="{ item }">
               <oc-icon
                 :name="item.status === 'ok' ? 'checkbox-circle' : 'close-circle'"
-                :fill-type="item.status === 'ok' ? 'fill' : 'fill'"
-                :class="item.status === 'ok' ? 'text-success' : 'text-danger'"
+                fill-type="fill"
+                :color="item.status === 'ok' ? 'var(--oc-role-on-surface)' : 'var(--oc-role-error)'"
                 size="medium"
               />
             </template>
@@ -123,11 +123,3 @@ onUnmounted(() => {
 })
 </script>
 
-<style scoped>
-.text-success {
-  color: var(--oc-color-swatch-success-default, #2e7d32);
-}
-.text-danger {
-  color: var(--oc-color-swatch-danger-default, #c62828);
-}
-</style>

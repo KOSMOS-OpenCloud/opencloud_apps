@@ -1,0 +1,50 @@
+spaceName: Posteingang
+
+sourceFolder: FB Interne Service/Inbox
+
+targetFolders:
+  kroeber:
+    label: Kröber
+    icon: folder
+    path: FB Interne Service/Kröber/Inbox
+  berger:
+    label: Berger
+    icon: folder
+    path: FB Interne Service/Berger/Inbox
+  billhardt:
+    label: Billhardt
+    icon: folder
+    path: FB Interne Service/Billhardt/Inbox
+  fritzsche:
+    label: Fritzsche
+    icon: folder
+    path: FB Interne Service/Fritzsche/Inbox
+  grosse:
+    label: Große
+    icon: folder
+    path: FB Interne Service/Große/Inbox
+  kuehn:
+    label: Kühn
+    icon: folder
+    path: FB Interne Service/Kühn/Inbox
+  lehmann:
+    label: Lehmann
+    icon: folder
+    path: FB Interne Service/Lehmann/Inbox
+  lessmann:
+    label: Lessmann
+    icon: folder
+    path: FB Interne Service/Lessmann/Inbox
+  nikel:
+    label: Nikel
+    icon: folder
+    path: FB Interne Service/Nikel/Inbox
+  nitsche:
+    label: Nitsche
+    icon: folder
+    path: FB Interne Service/Nitsche/Inbox
+  schmaehl:
+    label: Schmähl
+    icon: folder
+    path: FB Interne Service/Schmähl/Inbox
+
