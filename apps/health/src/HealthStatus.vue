@@ -280,11 +280,12 @@ async function runCheck(svcName: string, check: CheckConfig, isFirstCheck: boole
 
 async function runAllChecks() {
   const services = getServices()
-  // Build placeholder rows
-  const placeholders: RowResult[] = []
+  // Build placeholder rows — show table immediately
+  const initial: RowResult[] = []
+  let idx = 0
   for (const svc of services) {
     for (let i = 0; i < svc.checks.length; i++) {
-      placeholders.push({
+      initial.push({
         id: `${svc.name}-${svc.checks[i].label}`,
         service: i === 0 ? svc.name : '',
         endpoint: svc.checks[i].label,
@@ -293,20 +294,19 @@ async function runAllChecks() {
       })
     }
   }
-  rows.value = placeholders
+  rows.value = initial
+  loading.value = false
 
-  // Run all checks in parallel
-  const allChecks: Promise<RowResult>[] = []
+  // Fire all checks in parallel, update each row as it resolves
+  idx = 0
   for (const svc of services) {
     for (let i = 0; i < svc.checks.length; i++) {
-      allChecks.push(runCheck(svc.name, svc.checks[i], i === 0))
+      const rowIdx = idx++
+      runCheck(svc.name, svc.checks[i], i === 0).then((result) => {
+        rows.value = rows.value.map((r, ri) => (ri === rowIdx ? result : r))
+      })
     }
   }
-  const results = await Promise.allSettled(allChecks)
-  rows.value = results.map((r, idx) =>
-    r.status === 'fulfilled' ? r.value : { ...placeholders[idx], status: 'error' as const, info: 'check failed' }
-  )
-  loading.value = false
 }
 
 onMounted(() => {
