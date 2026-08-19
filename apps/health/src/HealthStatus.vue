@@ -231,6 +231,36 @@ function expandSearch(data: Record<string, unknown>): RowResult[] {
   return extra
 }
 
+// --- Aggregator: expand services[] (GET /graph/v1.0/extensions/health) into rows ---
+function expandAggregator(data: Record<string, unknown>): RowResult[] {
+  const extra: RowResult[] = []
+  const services = data.services as Array<Record<string, unknown>> | undefined
+  if (!Array.isArray(services)) return extra
+  for (const s of services) {
+    const name = String(s.name || '')
+    const details = s.details as Record<string, unknown> | undefined
+    let info = s.message ? String(s.message) : ''
+    if (!info && details) {
+      const parts: string[] = []
+      for (const key of ['doc_count', 'points_count', 'segments_count']) {
+        if (typeof details[key] === 'number') parts.push(`${key}: ${details[key]}`)
+      }
+      const iq = details.index_queue as Record<string, unknown> | undefined
+      if (iq) parts.push(`index_queue: ${iq.pending ?? 0} pending`)
+      if (parts.length) info = parts.join(' · ')
+    }
+    extra.push({
+      id: `aggr-${name}`,
+      service: '',
+      endpoint: name,
+      status: s.status === 'ok' ? 'ok' : 'error',
+      info,
+      details: details,
+    })
+  }
+  return extra
+}
+
 function buildInfo(data: unknown, check: CheckConfig): string {
   if (check.extract) {
     const val = extractValue(data, check.extract)
@@ -301,7 +331,7 @@ async function runCheck(svcName: string, check: CheckConfig, isFirstCheck: boole
 
       // Expand known service responses into sub-rows
       if (svcName === 'Taki') return [mainRow, ...expandTaki(data)]
-      if (svcName === 'Search') return [mainRow, ...expandSearch(data)]
+      if (svcName === 'Search') return [mainRow, ...expandAggregator(data)]
     } else {
       const text = await res.text()
       mainRow.status = 'ok'
