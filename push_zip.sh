@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 OWNER="${PUSH_ORG:-kosmos-eu}"
 REPO="${REPO:-opencloud_apps}"
 TAG="${TAG:-$(date +%Y%m%d-%H%M)}"
-BUILD_DIR="$SCRIPT_DIR/dist"
+BUILD_DIR="${DIST_DIR:-$SCRIPT_DIR/dist}"
 REGISTRY="${PUSH_REGISTRY:-codeberg}"
 
 # Token: PACKAGES_TOKEN > PUSH_TOKEN > CODEBERG_TOKEN > ~/.codeberg-token
@@ -17,10 +17,12 @@ if [ -z "$TOKEN" ] && [ -f ~/.codeberg-token ]; then
 fi
 : "${TOKEN:?Set PACKAGES_TOKEN or PUSH_TOKEN in DIST}"
 
-# Build
+# Build (skip if already built by worker)
 if [ -z "${SKIP_BUILD:-}" ]; then
     bash "$SCRIPT_DIR/build_web.sh"
 fi
+
+echo "=== Push: registry=$REGISTRY owner=$OWNER repo=$REPO tag=$TAG ==="
 
 # Push each app
 for app in $APPS; do
@@ -37,17 +39,26 @@ for app in $APPS; do
 
     case "$REGISTRY" in
         github)
-            echo "[push] ${PACKAGE}:${TAG} -> GitHub Release ${OWNER}/${REPO}"
-            RELEASE=$(curl -sf -X POST "https://api.github.com/repos/${OWNER}/${REPO}/releases" \
+            echo "[push] ${PACKAGE}:${TAG} -> GitHub Release ${OWNER}/${REPO} (tag: pkg-${TAG}-${app})"
+            RELEASE=$(curl -s -X POST "https://api.github.com/repos/${OWNER}/${REPO}/releases" \
                 -H "Authorization: token ${TOKEN}" \
                 -H "Content-Type: application/json" \
-                -d "{\"tag_name\":\"pkg-${TAG}-${app}\",\"name\":\"${PACKAGE} ${TAG}\",\"draft\":false}" 2>/dev/null)
-            RELEASE_ID=$(echo "$RELEASE" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
-            curl -sf -X POST "https://uploads.github.com/repos/${OWNER}/${REPO}/releases/${RELEASE_ID}/assets?name=${PACKAGE}.zip" \
+                -d "{\"tag_name\":\"pkg-${TAG}-${app}\",\"name\":\"${PACKAGE} ${TAG}\",\"draft\":false}")
+            RELEASE_ID=$(echo "$RELEASE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null)
+            if [ -z "$RELEASE_ID" ]; then
+                echo "  ERROR creating release: $RELEASE"
+                continue
+            fi
+            UPLOAD=$(curl -s -X POST "https://uploads.github.com/repos/${OWNER}/${REPO}/releases/${RELEASE_ID}/assets?name=${PACKAGE}.zip" \
                 -H "Authorization: token ${TOKEN}" \
                 -H "Content-Type: application/zip" \
-                --data-binary "@${TMPZIP}" > /dev/null
-            echo "  OK (pkg-${TAG}-${app})"
+                --data-binary "@${TMPZIP}")
+            ASSET_STATE=$(echo "$UPLOAD" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('state',''))" 2>/dev/null)
+            if [ "$ASSET_STATE" = "uploaded" ]; then
+                echo "  OK"
+            else
+                echo "  ERROR uploading asset: $UPLOAD"
+            fi
             ;;
         *)
             REGISTRY_HOST="${REGISTRY}.org"
@@ -67,4 +78,4 @@ for app in $APPS; do
     rm -f "$TMPZIP"
 done
 
-echo "=== Pushed $APPS (tag: $TAG, registry: $REGISTRY) ==="
+echo "=== Pushed (tag: $TAG, registry: $REGISTRY) ==="
