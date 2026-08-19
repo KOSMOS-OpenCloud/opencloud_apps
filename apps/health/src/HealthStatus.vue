@@ -63,6 +63,7 @@
 import {
   AppLoadingSpinner,
   NoContentMessage,
+  useAuthStore,
 } from '@opencloud-eu/web-pkg'
 import { useGettext } from 'vue3-gettext'
 import { computed, ref, onMounted, onUnmounted } from 'vue'
@@ -89,6 +90,7 @@ interface RowResult {
 }
 
 const { $gettext } = useGettext()
+const authStore = useAuthStore()
 
 const loading = ref(true)
 const rows = ref<RowResult[]>([])
@@ -159,83 +161,115 @@ function extractValue(data: unknown, path: string): string {
   return String(current)
 }
 
+// --- Taki: expand subsystems + backends into extra rows ---
+function expandTaki(data: Record<string, unknown>): RowResult[] {
+  const extra: RowResult[] = []
+  const subsystems = data.subsystems as Array<Record<string, unknown>> | undefined
+  if (Array.isArray(subsystems)) {
+    for (const ss of subsystems) {
+      extra.push({
+        id: `Taki-ss-${ss.name}`,
+        service: '',
+        endpoint: String(ss.name || ''),
+        status: ss.status === 'ok' ? 'ok' : 'error',
+        info: `${ss.detail || ''}${ss.latency ? ' · ' + ss.latency : ''}`,
+      })
+    }
+  }
+  const backends = data.backends as Record<string, Record<string, unknown>> | undefined
+  if (backends) {
+    for (const [model, info] of Object.entries(backends)) {
+      const bklist = info.backends as Array<Record<string, unknown>> | undefined
+      const healthy = bklist?.filter((b) => b.healthy).length ?? 0
+      const total = bklist?.length ?? 0
+      extra.push({
+        id: `Taki-bk-${model}`,
+        service: '',
+        endpoint: model,
+        status: healthy === total ? 'ok' : healthy > 0 ? 'warn' : 'error',
+        info: `${healthy}/${total} backends · ${info.requests ?? 0} req · ${info.errors ?? 0} err`,
+      })
+    }
+  }
+  return extra
+}
+
+// --- Search: expand index + enrich queues into extra rows ---
+function expandSearch(data: Record<string, unknown>): RowResult[] {
+  const extra: RowResult[] = []
+  const iq = data.index_queue as Record<string, unknown> | undefined
+  if (iq) {
+    extra.push({
+      id: 'Search-index-queue',
+      service: '',
+      endpoint: 'index queue',
+      status: 'ok',
+      info: `pending: ${iq.pending ?? 0} / ${iq.max ?? '?'} · processed: ${iq.processed ?? 0}`,
+    })
+  }
+  const eq = data.enrich_queue as Record<string, unknown> | undefined
+  if (eq) {
+    const pending = Number(eq.pending ?? 0)
+    extra.push({
+      id: 'Search-enrich-queue',
+      service: '',
+      endpoint: 'enrich queue',
+      status: pending > 100 ? 'warn' : 'ok',
+      info: `pending: ${pending} / ${eq.max ?? '?'} · processed: ${eq.processed ?? 0}`,
+    })
+  }
+  if (data.merger && typeof data.merger === 'object') {
+    const m = data.merger as Record<string, unknown>
+    extra.push({
+      id: 'Search-merger',
+      service: '',
+      endpoint: 'merger',
+      status: m.alive ? 'ok' : 'error',
+      info: m.alive ? 'alive' : 'dead',
+    })
+  }
+  return extra
+}
+
 function buildInfo(data: unknown, check: CheckConfig): string {
-  // Explicit extract path
   if (check.extract) {
     const val = extractValue(data, check.extract)
     if (val) {
       return check.suffix ? `${val} ${check.suffix}` : `${check.extract}: ${val}`
     }
   }
-  // Auto-extract interesting fields from flat object
   if (data && typeof data === 'object' && !Array.isArray(data)) {
     const obj = data as Record<string, unknown>
     const parts: string[] = []
-    // Common health fields
-    for (const key of ['status', 'version', 'title']) {
+    for (const key of ['status', 'version']) {
       if (key in obj && (typeof obj[key] === 'string' || typeof obj[key] === 'number')) {
         parts.push(`${key}: ${obj[key]}`)
       }
     }
-    // Numeric counters
-    for (const key of ['points_count', 'vectors_count', 'doc_count', 'pending', 'segments_count']) {
+    for (const key of ['doc_count', 'points_count', 'segments_count']) {
       if (key in obj && typeof obj[key] === 'number') {
         parts.push(`${key}: ${obj[key]}`)
       }
     }
-    // Nested result (qdrant style)
     if ('result' in obj && typeof obj.result === 'object' && obj.result) {
       const r = obj.result as Record<string, unknown>
-      for (const key of ['status', 'points_count', 'vectors_count', 'segments_count']) {
-        if (key in r && r[key] != null) {
-          parts.push(`${key}: ${r[key]}`)
-        }
+      for (const key of ['status', 'points_count', 'segments_count']) {
+        if (key in r && r[key] != null) parts.push(`${key}: ${r[key]}`)
       }
     }
-    // Nested queue (taki style)
     if ('queue' in obj && typeof obj.queue === 'object' && obj.queue) {
       const q = obj.queue as Record<string, unknown>
       const inflight = q.in_flight ?? q.pending ?? ''
       const max = q.max ?? ''
       if (inflight !== '' && max !== '') parts.push(`queue: ${inflight}/${max}`)
     }
-    // Subsystems (taki style)
-    if ('subsystems' in obj && typeof obj.subsystems === 'object' && obj.subsystems) {
-      const ss = obj.subsystems as Record<string, Record<string, unknown>>
-      const ssParts: string[] = []
-      for (const [k, v] of Object.entries(ss)) {
-        if (v && typeof v === 'object' && 'status' in v) {
-          ssParts.push(`${k}: ${v.status}`)
-        }
-      }
-      if (ssParts.length) parts.push(ssParts.join(' · '))
-    }
-    // Stats style (request counts)
-    for (const key of ['total_requests', 'total_errors', 'avg_latency_ms']) {
-      if (key in obj && typeof obj[key] === 'number') {
-        parts.push(`${key}: ${obj[key]}`)
-      }
-    }
     if (parts.length) return parts.join(' · ')
   }
   return ''
 }
 
-function getAccessToken(): string {
-  // OpenCloud stores the token in the oidc user object
-  for (const key of Object.keys(sessionStorage)) {
-    if (key.startsWith('oidc.user:')) {
-      try {
-        const user = JSON.parse(sessionStorage.getItem(key) || '{}')
-        if (user.access_token) return user.access_token
-      } catch { /* ignore */ }
-    }
-  }
-  return ''
-}
-
-async function runCheck(svcName: string, check: CheckConfig, isFirstCheck: boolean): Promise<RowResult> {
-  const result: RowResult = {
+async function runCheck(svcName: string, check: CheckConfig, isFirstCheck: boolean): Promise<RowResult[]> {
+  const mainRow: RowResult = {
     id: `${svcName}-${check.label}`,
     service: isFirstCheck ? svcName : '',
     endpoint: check.label,
@@ -244,7 +278,7 @@ async function runCheck(svcName: string, check: CheckConfig, isFirstCheck: boole
   }
   try {
     const url = `${window.location.origin}${check.url}`
-    const token = getAccessToken()
+    const token = (authStore as any).accessToken
     const headers: Record<string, string> = {}
     if (token) headers['Authorization'] = `Bearer ${token}`
 
@@ -254,35 +288,40 @@ async function runCheck(svcName: string, check: CheckConfig, isFirstCheck: boole
       signal: AbortSignal.timeout(10000),
     })
     if (!res.ok) {
-      result.status = 'error'
-      result.info = `HTTP ${res.status}`
-      return result
+      mainRow.status = 'error'
+      mainRow.info = `HTTP ${res.status}`
+      return [mainRow]
     }
     const contentType = res.headers.get('content-type') || ''
     if (contentType.includes('json')) {
       const data = await res.json()
-      result.status = 'ok'
-      result.info = buildInfo(data, check)
-      result.details = data as Record<string, unknown>
+      mainRow.status = 'ok'
+      mainRow.info = buildInfo(data, check)
+      mainRow.details = data as Record<string, unknown>
+
+      // Expand known service responses into sub-rows
+      if (svcName === 'Taki') return [mainRow, ...expandTaki(data)]
+      if (svcName === 'Search') return [mainRow, ...expandSearch(data)]
     } else {
       const text = await res.text()
-      result.status = 'ok'
-      result.info = text.trim().slice(0, 80) || 'OK'
+      mainRow.status = 'ok'
+      mainRow.info = text.trim().slice(0, 80) || 'OK'
     }
   } catch (e) {
-    result.status = 'error'
-    result.info = e instanceof Error ? e.message : String(e)
+    mainRow.status = 'error'
+    mainRow.info = e instanceof Error ? e.message : String(e)
   }
-  return result
+  return [mainRow]
 }
 
 async function runAllChecks() {
   const services = getServices()
   // Build placeholder rows — show table immediately
   const initial: RowResult[] = []
-  let idx = 0
+  const checkMeta: Array<{ svcName: string; check: CheckConfig; isFirst: boolean; startIdx: number }> = []
   for (const svc of services) {
     for (let i = 0; i < svc.checks.length; i++) {
+      checkMeta.push({ svcName: svc.name, check: svc.checks[i], isFirst: i === 0, startIdx: initial.length })
       initial.push({
         id: `${svc.name}-${svc.checks[i].label}`,
         service: i === 0 ? svc.name : '',
@@ -295,21 +334,23 @@ async function runAllChecks() {
   rows.value = initial
   loading.value = false
 
-  // Fire all checks in parallel, update each row as it resolves
-  idx = 0
-  for (const svc of services) {
-    for (let i = 0; i < svc.checks.length; i++) {
-      const rowIdx = idx++
-      runCheck(svc.name, svc.checks[i], i === 0).then((result) => {
-        rows.value = rows.value.map((r, ri) => (ri === rowIdx ? result : r))
-      })
-    }
+  // Fire all checks in parallel, splice results (may be multi-row) as they resolve
+  for (const cm of checkMeta) {
+    runCheck(cm.svcName, cm.check, cm.isFirst).then((resultRows) => {
+      const current = [...rows.value]
+      // Find the placeholder row by id
+      const idx = current.findIndex((r) => r.id === `${cm.svcName}-${cm.check.label}`)
+      if (idx >= 0) {
+        current.splice(idx, 1, ...resultRows)
+        rows.value = current
+      }
+    })
   }
 }
 
 onMounted(() => {
   runAllChecks()
-  refreshTimer = setInterval(runAllChecks, 30000)
+  refreshTimer = setInterval(runAllChecks, 60000)
 })
 
 onUnmounted(() => {
