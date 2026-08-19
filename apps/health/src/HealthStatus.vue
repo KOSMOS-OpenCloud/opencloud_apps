@@ -288,13 +288,8 @@ async function runCheck(svcName: string, check: CheckConfig, isFirstCheck: boole
       signal: AbortSignal.timeout(10000),
     })
     if (!res.ok) {
-      if (res.status === 401 || res.status === 403) {
-        mainRow.status = 'ok'
-        mainRow.info = 'running (auth required)'
-      } else {
-        mainRow.status = 'error'
-        mainRow.info = `HTTP ${res.status}`
-      }
+      mainRow.status = 'error'
+      mainRow.info = `HTTP ${res.status}`
       return [mainRow]
     }
     const contentType = res.headers.get('content-type') || ''
