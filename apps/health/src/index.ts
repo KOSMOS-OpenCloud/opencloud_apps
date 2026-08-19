@@ -4,7 +4,7 @@ import {
   SidebarNavExtension,
   useAbility,
 } from '@opencloud-eu/web-pkg'
-import { computed, provide } from 'vue'
+import { computed } from 'vue'
 import HealthStatus from './HealthStatus.vue'
 import { useGettext } from 'vue3-gettext'
 
@@ -15,7 +15,7 @@ export default defineWebApplication({
     const { $gettext } = useGettext()
     const { can } = useAbility()
 
-    provide('applicationConfig', applicationConfig ?? {})
+    const healthConfig = (applicationConfig as Record<string, unknown>) ?? {}
 
     const extensions = computed<Extension[]>(() => {
       if (!can('read-all', 'Setting')) return []
@@ -44,6 +44,7 @@ export default defineWebApplication({
         meta: {
           authContext: 'user',
           title: $gettext('Health'),
+          healthConfig,
         },
       },
     ]

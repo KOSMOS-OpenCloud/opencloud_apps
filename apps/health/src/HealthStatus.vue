@@ -1,6 +1,6 @@
 <template>
   <main class="flex app-content size-full rounded-l-xl">
-    <app-loading-spinner v-if="loading && !checks.length" />
+    <app-loading-spinner v-if="loading && !rows.length" />
     <div v-else class="admin-settings-wrapper flex w-full flex-1 h-full">
       <div class="relative grid grid-cols-1 flex-1 focus:outline-0 h-full overflow-y-auto">
         <div class="outline-0 z-0 flex flex-col">
@@ -17,7 +17,7 @@
             </div>
           </div>
 
-          <no-content-message v-if="!checks.length" icon="heart-pulse">
+          <no-content-message v-if="!rows.length && !loading" icon="heart-pulse">
             <template #message>
               <span>{{ $gettext('No health checks configured') }}</span>
             </template>
@@ -32,18 +32,24 @@
                 size="medium"
               />
             </template>
+            <template #service="{ item }">
+              <span v-if="item.service" class="font-medium">{{ item.service }}</span>
+            </template>
+            <template #endpoint="{ item }">
+              <span class="text-role-on-surface-variant text-sm">{{ item.endpoint }}</span>
+            </template>
             <template #info="{ item }">
               <span class="text-role-on-surface-variant text-sm">{{ item.info }}</span>
             </template>
           </oc-table>
 
           <div v-if="hasDetails" class="px-4 py-2">
-            <template v-for="check in checks" :key="check.name">
-              <details v-if="check.details" class="mb-2">
+            <template v-for="row in rows" :key="row.id">
+              <details v-if="row.details" class="mb-2">
                 <summary class="cursor-pointer text-role-on-surface-variant text-sm font-medium">
-                  {{ check.name }} — {{ $gettext('Details') }}
+                  {{ row.service || '' }} {{ row.endpoint }} — {{ $gettext('Raw JSON') }}
                 </summary>
-                <pre class="health-details">{{ formatDetails(check.details) }}</pre>
+                <pre class="health-details">{{ formatJson(row.details) }}</pre>
               </details>
             </template>
           </div>
@@ -59,46 +65,57 @@ import {
   NoContentMessage,
 } from '@opencloud-eu/web-pkg'
 import { useGettext } from 'vue3-gettext'
-import { computed, ref, onMounted, onUnmounted, inject } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 
-interface CheckResult {
+interface CheckConfig {
+  url: string
+  label: string
+  extract?: string
+  suffix?: string
+}
+
+interface ServiceConfig {
   name: string
+  checks: CheckConfig[]
+}
+
+interface RowResult {
+  id: string
+  service: string
+  endpoint: string
   status: 'ok' | 'warn' | 'error' | 'pending'
   info: string
   details?: Record<string, unknown>
 }
 
-interface CheckConfig {
-  name: string
-  url: string
-  extract?: string
-}
-
 const { $gettext } = useGettext()
-const applicationConfig = inject<Record<string, unknown>>('applicationConfig', {})
+const route = useRoute()
 
 const loading = ref(true)
-const checks = ref<CheckResult[]>([])
+const rows = ref<RowResult[]>([])
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 
 const breadcrumbs = computed(() => [{ text: $gettext('Health') }])
 
 const fields = [
   { name: 'status', title: '', type: 'slot', width: '48px' },
-  { name: 'name', title: $gettext('Service') },
+  { name: 'service', title: $gettext('Service'), type: 'slot', width: '140px' },
+  { name: 'endpoint', title: $gettext('Endpoint'), type: 'slot', width: '180px' },
   { name: 'info', title: $gettext('Info'), type: 'slot' },
 ]
 
 const tableData = computed(() =>
-  checks.value.map((c) => ({
-    id: c.name,
-    name: c.name,
-    status: c.status,
-    info: c.info,
+  rows.value.map((r) => ({
+    id: r.id,
+    service: r.service,
+    endpoint: r.endpoint,
+    status: r.status,
+    info: r.info,
   }))
 )
 
-const hasDetails = computed(() => checks.value.some((c) => c.details))
+const hasDetails = computed(() => rows.value.some((r) => r.details))
 
 function statusIcon(status: string): string {
   if (status === 'ok') return 'checkbox-circle'
@@ -114,21 +131,22 @@ function statusColor(status: string): string {
   return 'var(--oc-role-error)'
 }
 
-function formatDetails(details: Record<string, unknown>): string {
-  return JSON.stringify(details, null, 2)
+function formatJson(data: Record<string, unknown>): string {
+  return JSON.stringify(data, null, 2)
 }
 
-function getDefaultChecks(): CheckConfig[] {
+function getDefaultServices(): ServiceConfig[] {
   return [
-    { name: 'OpenCloud', url: '/graph/v1.0/me', extract: 'displayName' },
-    { name: 'microllm', url: '/ai-chat/health', extract: 'status' },
-    { name: 'Taki', url: '/ai-chat/v1/models', extract: 'data.length' },
+    { name: 'OpenCloud', checks: [{ url: '/graph/v1.0/me', label: '/graph/v1.0/me', extract: 'displayName' }] },
+    { name: 'microllm', checks: [{ url: '/ai-chat/health', label: '/health', extract: 'status' }] },
   ]
 }
 
-function getConfiguredChecks(): CheckConfig[] {
-  const cfg = applicationConfig?.checks as CheckConfig[] | undefined
-  return Array.isArray(cfg) ? cfg : getDefaultChecks()
+function getServices(): ServiceConfig[] {
+  const meta = route.meta?.healthConfig as Record<string, unknown> | undefined
+  const svcs = meta?.services as ServiceConfig[] | undefined
+  if (Array.isArray(svcs) && svcs.length > 0) return svcs
+  return getDefaultServices()
 }
 
 function extractValue(data: unknown, path: string): string {
@@ -140,49 +158,102 @@ function extractValue(data: unknown, path: string): string {
     current = (current as Record<string, unknown>)[part]
   }
   if (current == null) return ''
-  if (typeof current === 'number' || typeof current === 'string' || typeof current === 'boolean') {
-    return String(current)
-  }
-  return ''
+  return String(current)
 }
 
-function buildInfoString(data: unknown, extractPath?: string): string {
-  if (extractPath) {
-    const val = extractValue(data, extractPath)
-    if (val) return `${extractPath}: ${val}`
+function buildInfo(data: unknown, check: CheckConfig): string {
+  // Explicit extract path
+  if (check.extract) {
+    const val = extractValue(data, check.extract)
+    if (val) {
+      return check.suffix ? `${val} ${check.suffix}` : `${check.extract}: ${val}`
+    }
   }
+  // Auto-extract interesting fields from flat object
   if (data && typeof data === 'object' && !Array.isArray(data)) {
     const obj = data as Record<string, unknown>
-    // Auto-extract common health fields
-    const interesting: string[] = []
-    for (const key of ['status', 'version', 'points_count', 'doc_count', 'pending', 'uptime']) {
-      if (key in obj) {
-        const v = obj[key]
-        if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') {
-          interesting.push(`${key}: ${v}`)
+    const parts: string[] = []
+    // Common health fields
+    for (const key of ['status', 'version', 'title']) {
+      if (key in obj && (typeof obj[key] === 'string' || typeof obj[key] === 'number')) {
+        parts.push(`${key}: ${obj[key]}`)
+      }
+    }
+    // Numeric counters
+    for (const key of ['points_count', 'vectors_count', 'doc_count', 'pending', 'segments_count']) {
+      if (key in obj && typeof obj[key] === 'number') {
+        parts.push(`${key}: ${obj[key]}`)
+      }
+    }
+    // Nested result (qdrant style)
+    if ('result' in obj && typeof obj.result === 'object' && obj.result) {
+      const r = obj.result as Record<string, unknown>
+      for (const key of ['status', 'points_count', 'vectors_count', 'segments_count']) {
+        if (key in r && r[key] != null) {
+          parts.push(`${key}: ${r[key]}`)
         }
       }
     }
-    if (interesting.length) return interesting.join(' · ')
+    // Nested queue (taki style)
+    if ('queue' in obj && typeof obj.queue === 'object' && obj.queue) {
+      const q = obj.queue as Record<string, unknown>
+      const inflight = q.in_flight ?? q.pending ?? ''
+      const max = q.max ?? ''
+      if (inflight !== '' && max !== '') parts.push(`queue: ${inflight}/${max}`)
+    }
+    // Subsystems (taki style)
+    if ('subsystems' in obj && typeof obj.subsystems === 'object' && obj.subsystems) {
+      const ss = obj.subsystems as Record<string, Record<string, unknown>>
+      const ssParts: string[] = []
+      for (const [k, v] of Object.entries(ss)) {
+        if (v && typeof v === 'object' && 'status' in v) {
+          ssParts.push(`${k}: ${v.status}`)
+        }
+      }
+      if (ssParts.length) parts.push(ssParts.join(' · '))
+    }
+    // Stats style (request counts)
+    for (const key of ['total_requests', 'total_errors', 'avg_latency_ms']) {
+      if (key in obj && typeof obj[key] === 'number') {
+        parts.push(`${key}: ${obj[key]}`)
+      }
+    }
+    if (parts.length) return parts.join(' · ')
   }
   return ''
 }
 
-async function runCheck(cfg: CheckConfig): Promise<CheckResult> {
-  const result: CheckResult = { name: cfg.name, status: 'pending', info: '' }
-  try {
-    const isAbsolute = cfg.url.startsWith('http')
-    const url = isAbsolute ? cfg.url : `${window.location.origin}${cfg.url}`
-    const headers: Record<string, string> = {}
-    if (!isAbsolute) {
-      // Use the stored access token for same-origin requests
-      const token = sessionStorage.getItem('oc_accessToken') || localStorage.getItem('oc_accessToken')
-      if (token) headers['Authorization'] = `Bearer ${token}`
+function getAccessToken(): string {
+  // OpenCloud stores the token in the oidc user object
+  for (const key of Object.keys(sessionStorage)) {
+    if (key.startsWith('oidc.user:')) {
+      try {
+        const user = JSON.parse(sessionStorage.getItem(key) || '{}')
+        if (user.access_token) return user.access_token
+      } catch { /* ignore */ }
     }
+  }
+  return ''
+}
+
+async function runCheck(svcName: string, check: CheckConfig, isFirstCheck: boolean): Promise<RowResult> {
+  const result: RowResult = {
+    id: `${svcName}-${check.label}`,
+    service: isFirstCheck ? svcName : '',
+    endpoint: check.label,
+    status: 'pending',
+    info: '',
+  }
+  try {
+    const url = `${window.location.origin}${check.url}`
+    const token = getAccessToken()
+    const headers: Record<string, string> = {}
+    if (token) headers['Authorization'] = `Bearer ${token}`
+
     const res = await fetch(url, {
       headers,
+      credentials: 'omit',
       signal: AbortSignal.timeout(10000),
-      credentials: isAbsolute ? 'omit' : 'same-origin',
     })
     if (!res.ok) {
       result.status = 'error'
@@ -193,11 +264,12 @@ async function runCheck(cfg: CheckConfig): Promise<CheckResult> {
     if (contentType.includes('json')) {
       const data = await res.json()
       result.status = 'ok'
-      result.info = buildInfoString(data, cfg.extract)
+      result.info = buildInfo(data, check)
       result.details = data as Record<string, unknown>
     } else {
+      const text = await res.text()
       result.status = 'ok'
-      result.info = `${res.status} OK`
+      result.info = text.trim().slice(0, 80) || 'OK'
     }
   } catch (e) {
     result.status = 'error'
@@ -207,11 +279,32 @@ async function runCheck(cfg: CheckConfig): Promise<CheckResult> {
 }
 
 async function runAllChecks() {
-  const configs = getConfiguredChecks()
-  checks.value = configs.map((c) => ({ name: c.name, status: 'pending', info: '' }))
-  const results = await Promise.allSettled(configs.map(runCheck))
-  checks.value = results.map((r, i) =>
-    r.status === 'fulfilled' ? r.value : { name: configs[i].name, status: 'error' as const, info: 'check failed' }
+  const services = getServices()
+  // Build placeholder rows
+  const placeholders: RowResult[] = []
+  for (const svc of services) {
+    for (let i = 0; i < svc.checks.length; i++) {
+      placeholders.push({
+        id: `${svc.name}-${svc.checks[i].label}`,
+        service: i === 0 ? svc.name : '',
+        endpoint: svc.checks[i].label,
+        status: 'pending',
+        info: '',
+      })
+    }
+  }
+  rows.value = placeholders
+
+  // Run all checks in parallel
+  const allChecks: Promise<RowResult>[] = []
+  for (const svc of services) {
+    for (let i = 0; i < svc.checks.length; i++) {
+      allChecks.push(runCheck(svc.name, svc.checks[i], i === 0))
+    }
+  }
+  const results = await Promise.allSettled(allChecks)
+  rows.value = results.map((r, idx) =>
+    r.status === 'fulfilled' ? r.value : { ...placeholders[idx], status: 'error' as const, info: 'check failed' }
   )
   loading.value = false
 }
