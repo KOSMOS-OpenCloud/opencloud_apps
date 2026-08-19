@@ -17,8 +17,8 @@ if [ -z "$TOKEN" ] && [ -f ~/.codeberg-token ]; then
 fi
 : "${TOKEN:?Set PACKAGES_TOKEN or PUSH_TOKEN in DIST}"
 
-# Build (skip if already built by worker)
-if [ -z "${SKIP_BUILD:-}" ]; then
+# Build (skip if already built by worker or dist/ exists)
+if [ -z "${SKIP_BUILD:-}" ] && [ ! -d "$BUILD_DIR" ]; then
     bash "$SCRIPT_DIR/build_web.sh"
 fi
 
