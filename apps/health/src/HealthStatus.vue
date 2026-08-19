@@ -66,7 +66,6 @@ import {
 } from '@opencloud-eu/web-pkg'
 import { useGettext } from 'vue3-gettext'
 import { computed, ref, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
 
 interface CheckConfig {
   url: string
@@ -90,7 +89,6 @@ interface RowResult {
 }
 
 const { $gettext } = useGettext()
-const route = useRoute()
 
 const loading = ref(true)
 const rows = ref<RowResult[]>([])
@@ -143,8 +141,8 @@ function getDefaultServices(): ServiceConfig[] {
 }
 
 function getServices(): ServiceConfig[] {
-  const meta = route.meta?.healthConfig as Record<string, unknown> | undefined
-  const svcs = meta?.services as ServiceConfig[] | undefined
+  const cfg = (window as any).__healthConfig as Record<string, unknown> | undefined
+  const svcs = cfg?.services as ServiceConfig[] | undefined
   if (Array.isArray(svcs) && svcs.length > 0) return svcs
   return getDefaultServices()
 }

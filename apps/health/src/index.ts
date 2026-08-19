@@ -15,7 +15,8 @@ export default defineWebApplication({
     const { $gettext } = useGettext()
     const { can } = useAbility()
 
-    const healthConfig = (applicationConfig as Record<string, unknown>) ?? {}
+    // Module Federation isolates useRoute()/inject() — use window to pass config
+    ;(window as any).__healthConfig = (applicationConfig as Record<string, unknown>) ?? {}
 
     const extensions = computed<Extension[]>(() => {
       if (!can('read-all', 'Setting')) return []
@@ -44,7 +45,6 @@ export default defineWebApplication({
         meta: {
           authContext: 'user',
           title: $gettext('Health'),
-          healthConfig,
         },
       },
     ]
