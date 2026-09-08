@@ -398,18 +398,28 @@ export default defineComponent({
         const driveId = space.value.id
         const itemId = selectedDoc.value.resource.fileId || selectedDoc.value.resource.id
         const httpClient = (clientService as any).httpAuthenticated
-        // Synchron: Server blockiert bis Taki-Extraktion fertig (typ. 25-50s)
-        await httpClient.post(`/graph/v1beta1/drives/${driveId}/items/${itemId}/reindex?overwrite=true`, {
-          timeout: 120000
-        })
-        // Metadaten neu laden
+        await httpClient.post(`/graph/v1beta1/drives/${driveId}/items/${itemId}/reindex?overwrite=true`)
+        showMessage({ title: 'Reindex angestossen' })
+        // Poll for metadata (3s interval, max 60s)
         const doc = selectedDoc.value
-        await loadMetadata(doc)
-        showMessage({ title: 'Metadaten aktualisiert' })
+        let elapsed = 0
+        const poll = setInterval(async () => {
+          elapsed += 3000
+          if (elapsed > 60000 || selectedDoc.value !== doc) {
+            clearInterval(poll)
+            reindexing.value = false
+            return
+          }
+          await loadMetadata(doc)
+          if (Object.keys(docMetadata.value).length > 0) {
+            clearInterval(poll)
+            reindexing.value = false
+            showMessage({ title: 'Metadaten aktualisiert' })
+          }
+        }, 3000)
       } catch (err) {
         console.error('[posteingang] reindex error:', err)
         showErrorMessage({ title: 'Reindex fehlgeschlagen' })
-      } finally {
         reindexing.value = false
       }
     }
