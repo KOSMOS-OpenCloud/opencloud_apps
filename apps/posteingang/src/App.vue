@@ -313,6 +313,15 @@ export default defineComponent({
       selectFirstOrNone()
     }
 
+    function showMoveError(err: any) {
+      if (err?.statusCode === 412) {
+        showErrorMessage({ title: 'Datei existiert bereits im Zielordner' })
+        return
+      }
+      const detail = err?.statusCode ? `${err.statusCode} ${err.message || ''}`.trim() : (err?.message || '')
+      showErrorMessage({ title: `Zuweisung fehlgeschlagen${detail ? ': ' + detail : ''}` })
+    }
+
     async function onAssign() {
       if (!space.value || !selectedDoc.value || !selectedTarget.value) return
       const target = config.value.targetFolders.find(t => t.id === selectedTarget.value)
@@ -323,8 +332,7 @@ export default defineComponent({
         await doAssign(selectedDoc.value.resource.name, target)
         showMessage({ title: `Zugewiesen an: ${target.label}` })
       } catch (err: any) {
-        const detail = err?.statusCode ? `${err.statusCode} ${err.message || ''}`.trim() : (err?.message || '')
-        showErrorMessage({ title: `Zuweisung fehlgeschlagen${detail ? ': ' + detail : ''}` })
+        showMoveError(err)
       }
       assigning.value = false
     }
@@ -342,8 +350,7 @@ export default defineComponent({
         await doAssign(destName, target)
         showMessage({ title: `Zugewiesen an: ${target.label}${docTitle ? ' als ' + destName : ''}` })
       } catch (err: any) {
-        const detail = err?.statusCode ? `${err.statusCode} ${err.message || ''}`.trim() : (err?.message || '')
-        showErrorMessage({ title: `Zuweisung fehlgeschlagen${detail ? ': ' + detail : ''}` })
+        showMoveError(err)
       }
       assigning.value = false
     }
