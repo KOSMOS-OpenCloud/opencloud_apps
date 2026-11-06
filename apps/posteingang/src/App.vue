@@ -313,9 +313,31 @@ export default defineComponent({
       selectFirstOrNone()
     }
 
+    // WebDAV allows names up to 255 bytes; title + extension must stay below
+    const MAX_TITLE_BYTES = 250
+
+    /** Cut title to maxBytes UTF-8 bytes without splitting a character */
+    function truncateTitle(title: string, maxBytes: number): string {
+      const encoder = new TextEncoder()
+      if (encoder.encode(title).length <= maxBytes) return title
+      let truncated = ''
+      let bytes = 0
+      for (const char of title) {
+        const charBytes = encoder.encode(char).length
+        if (bytes + charBytes > maxBytes) break
+        truncated += char
+        bytes += charBytes
+      }
+      return truncated.trimEnd()
+    }
+
     function showMoveError(err: any) {
       if (err?.statusCode === 412) {
         showErrorMessage({ title: 'Datei existiert bereits im Zielordner' })
+        return
+      }
+      if (err?.statusCode === 400) {
+        showErrorMessage({ title: 'Zuweisung fehlgeschlagen: ungültiger Dateiname (zu lang oder unzulässige Zeichen)' })
         return
       }
       const detail = err?.statusCode ? `${err.statusCode} ${err.message || ''}`.trim() : (err?.message || '')
@@ -346,7 +368,7 @@ export default defineComponent({
       try {
         const docTitle = docMetadata.value?.['doc.title']
         const ext = selectedDoc.value.resource.name.replace(/^.*(\.[^.]+)$/, '$1') || '.pdf'
-        const destName = docTitle ? `${docTitle}${ext}` : selectedDoc.value.resource.name
+        const destName = docTitle ? `${truncateTitle(docTitle, MAX_TITLE_BYTES)}${ext}` : selectedDoc.value.resource.name
         await doAssign(destName, target)
         showMessage({ title: `Zugewiesen an: ${target.label}${docTitle ? ' als ' + destName : ''}` })
       } catch (err: any) {
