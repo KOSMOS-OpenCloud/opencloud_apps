@@ -1,0 +1,23 @@
+{
+  "name": "cam",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Kamera-App: Fotos aufnehmen und in Personal/Fotos/<Jahr>/<Monat>/ ablegen; Kachel im Quick-Menü",
+  "type": "module",
+  "scripts": {
+    "build": "vite build --mode production"
+  },
+  "dependencies": {
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "@opencloud-eu/extension-sdk": "7.0.1",
+    "@opencloud-eu/web-client": "^4.0.0",
+    "@opencloud-eu/web-pkg": "^4.0.0",
+    "typescript": "~5.6.0",
+    "vite": "^8.0.0",
+    "vue-tsc": "^2.0.0",
+    "vue3-gettext": "^2.4.0"
+  },
+  "packageManager": "pnpm@10.18.0"
+}

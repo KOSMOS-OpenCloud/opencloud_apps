@@ -1,0 +1,5 @@
+onlyBuiltDependencies:
+  - esbuild
+minimumReleaseAge: 1440
+ignoredBuiltDependencies:
+  - vue-demi
