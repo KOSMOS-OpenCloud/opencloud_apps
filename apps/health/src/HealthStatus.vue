@@ -231,7 +231,7 @@ function expandSearch(data: Record<string, unknown>): RowResult[] {
   return extra
 }
 
-// --- Aggregator: expand services[] (GET /graph/v1.0/extensions/health) into rows ---
+// --- Aggregator: expand services[] (GET /graph/v1.0/extensions/health, GET /dock/health) into rows ---
 function expandAggregator(data: Record<string, unknown>): RowResult[] {
   const extra: RowResult[] = []
   const services = data.services as Array<Record<string, unknown>> | undefined
@@ -242,7 +242,7 @@ function expandAggregator(data: Record<string, unknown>): RowResult[] {
     let info = s.message ? String(s.message) : ''
     if (!info && details) {
       const parts: string[] = []
-      for (const key of ['doc_count', 'points_count', 'segments_count']) {
+      for (const key of ['doc_count', 'points_count', 'segments_count', 'hooks']) {
         if (typeof details[key] === 'number') parts.push(`${key}: ${details[key]}`)
       }
       const iq = details.index_queue as Record<string, unknown> | undefined
@@ -331,7 +331,9 @@ async function runCheck(svcName: string, check: CheckConfig, isFirstCheck: boole
 
       // Expand known service responses into sub-rows
       if (svcName === 'Taki') return [mainRow, ...expandTaki(data)]
-      if (svcName === 'Search') return [mainRow, ...expandAggregator(data)]
+      // Aggregator-Format {services:[{name,status,message,details}]}: OpenCloud /graph/v1.0/extensions/health,
+      // OpenDock /dock/health (Kern + jedes Modul) – jede Antwort dieser Form wird zu Zeilen aufgeklappt
+      if (Array.isArray((data as Record<string, unknown>).services)) return [mainRow, ...expandAggregator(data)]
     } else {
       const text = await res.text()
       mainRow.status = 'ok'
