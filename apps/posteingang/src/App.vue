@@ -29,9 +29,9 @@
       </section>
 
       <!-- Handy: Vorschau als Overlay nach Klick auf ein Dokument, direkt wieder schließbar (Nutzer 2026-11-08) -->
-      <div v-if="mobilePreviewOpen && selectedDoc" class="posteingang-overlay" role="dialog" :aria-label="selectedDoc.name">
+      <div v-if="mobilePreviewOpen && selectedDoc" class="posteingang-overlay" role="dialog" :aria-label="selectedDoc.resource.name">
         <div class="posteingang-overlay-bar">
-          <span class="posteingang-overlay-title">{{ selectedDoc.name }}</span>
+          <span class="posteingang-overlay-title">{{ selectedDoc.resource.name }}</span>
           <button type="button" class="posteingang-overlay-close" aria-label="Vorschau schließen" @click="mobilePreviewOpen = false">
             <oc-icon name="close" fill-type="line" />
           </button>
