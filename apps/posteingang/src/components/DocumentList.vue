@@ -59,7 +59,7 @@ export default defineComponent({
 .doc-list-empty {
   padding: 24px 16px;
   text-align: center;
-  color: #999;
+  color: var(--oc-role-on-surface-variant);
   font-size: 13px;
 }
 
@@ -75,22 +75,22 @@ export default defineComponent({
   gap: 10px;
   padding: 10px 16px;
   cursor: pointer;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--oc-role-outline-variant);
   transition: background 0.15s;
 }
 
 .doc-list-item:hover {
-  background: #f5f7fa;
+  background: var(--oc-role-surface-container);
 }
 
 .doc-list-item--selected {
-  background: #e3f2fd;
-  border-left: 3px solid #1565c0;
+  background: var(--oc-role-secondary-container);
+  border-left: 3px solid var(--oc-role-primary);
   padding-left: 13px;
 }
 
 .doc-list-item-icon {
-  color: #c62828;
+  color: var(--oc-role-error);
   flex-shrink: 0;
 }
 
@@ -111,12 +111,12 @@ export default defineComponent({
   display: flex;
   gap: 8px;
   font-size: 11px;
-  color: #999;
+  color: var(--oc-role-on-surface-variant);
   margin-top: 2px;
 }
 
 .doc-list-item-folder {
-  background: #f0f0f0;
+  background: var(--oc-role-surface-container-high);
   padding: 1px 6px;
   border-radius: 3px;
 }

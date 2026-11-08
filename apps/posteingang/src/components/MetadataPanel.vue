@@ -166,7 +166,7 @@ export default defineComponent({
   align-items: center;
   justify-content: space-between;
   padding: 12px 16px;
-  border-top: 1px solid var(--oc-role-outline, #e0e0e0);
+  border-top: 1px solid var(--oc-role-outline-variant);
   flex-shrink: 0;
 }
 
@@ -216,7 +216,7 @@ export default defineComponent({
 }
 
 .meta-field--uncertain {
-  background: var(--oc-role-warning-container, #fff8e1);
+  background: var(--oc-role-tertiary-container);
   margin-left: -6px;
   margin-right: -6px;
   padding: 2px 6px;
@@ -249,7 +249,7 @@ export default defineComponent({
 .meta-field-input {
   width: 100%;
   padding: 5px 8px;
-  border: 1px solid var(--oc-role-outline, #ddd);
+  border: 1px solid var(--oc-role-outline-variant);
   border-radius: 4px;
   font-size: 13px;
   outline: none;

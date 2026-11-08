@@ -40,7 +40,7 @@ export default defineComponent({
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #999;
+  color: var(--oc-role-on-surface-variant);
   font-size: 14px;
 }
 

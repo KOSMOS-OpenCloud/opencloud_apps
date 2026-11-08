@@ -12,7 +12,7 @@
           :documents="documents"
           :selected="selectedDoc"
           :loading="loadingList"
-          @select="onSelectDocument"
+          @select="onSelectDocument($event, true)"
         />
       </aside>
 
@@ -27,6 +27,17 @@
           Dokument auswaehlen
         </div>
       </section>
+
+      <!-- Handy: Vorschau als Overlay nach Klick auf ein Dokument, direkt wieder schließbar (Nutzer 2026-11-08) -->
+      <div v-if="mobilePreviewOpen && selectedDoc" class="posteingang-overlay" role="dialog" :aria-label="selectedDoc.name">
+        <div class="posteingang-overlay-bar">
+          <span class="posteingang-overlay-title">{{ selectedDoc.name }}</span>
+          <button type="button" class="posteingang-overlay-close" aria-label="Vorschau schließen" @click="mobilePreviewOpen = false">
+            <oc-icon name="close" fill-type="line" />
+          </button>
+        </div>
+        <PdfPreview :url="pdfUrl" :loading="loadingPdf" />
+      </div>
 
       <!-- Right: Actions + Metadata -->
       <aside class="posteingang-panel posteingang-actions">
@@ -92,6 +103,9 @@ export default defineComponent({
     const reindexing = ref(false)
     const editingMeta = ref(false)
     const savingMeta = ref(false)
+    // Handy-Modus (drei Teile untereinander): Vorschau nur als Overlay nach Klick in der Liste
+    const mobilePreviewOpen = ref(false)
+    const isMobile = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
     const pdfUrl = ref('')
     const docMetadata = ref<Record<string, any>>({})
 
@@ -274,12 +288,16 @@ export default defineComponent({
       }
     }
 
-    function onSelectDocument(doc: DocumentEntry) {
+    function onSelectDocument(doc: DocumentEntry, fromUser = false) {
       selectedDoc.value = doc
       selectedTarget.value = ''
       editingMeta.value = false
       loadPdfUrl(doc)
       loadMetadata(doc)
+      // nur der Klick in der Liste öffnet die Vorschau auf dem Handy, nicht die Vorauswahl beim Laden
+      if (fromUser && isMobile()) {
+        mobilePreviewOpen.value = true
+      }
     }
 
     /** PROPFIND Depth:1 on target folder to warm up IDCache before MOVE */
@@ -499,6 +517,7 @@ export default defineComponent({
       editingMeta,
       savingMeta,
       onSelectDocument,
+      mobilePreviewOpen,
       onAssign,
       onAssignRename,
       onDelete,
@@ -524,11 +543,12 @@ export default defineComponent({
   display: flex;
   height: 100%;
   gap: 1px;
-  background: #e0e0e0;
+  background: var(--oc-role-outline-variant);
 }
 
 .posteingang-panel {
-  background: #fff;
+  background: var(--oc-role-surface);
+  color: var(--oc-role-on-surface);
   overflow: auto;
 }
 
@@ -537,8 +557,8 @@ export default defineComponent({
   font-weight: 600;
   padding: 12px 16px;
   margin: 0;
-  border-bottom: 1px solid #e0e0e0;
-  background: #fafafa;
+  border-bottom: 1px solid var(--oc-role-outline-variant);
+  background: var(--oc-role-surface-container);
   position: sticky;
   top: 0;
   z-index: 1;
@@ -568,7 +588,68 @@ export default defineComponent({
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #999;
+  color: var(--oc-role-on-surface-variant);
   font-size: 14px;
+}
+/* Vorschau-Overlay (Handy) */
+.posteingang-overlay {
+  position: fixed;
+  inset: 0;
+  top: var(--oc-topbar-height, 52px);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  background: var(--oc-role-surface);
+  color: var(--oc-role-on-surface);
+}
+.posteingang-overlay-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--oc-role-outline-variant);
+  background: var(--oc-role-surface-container);
+}
+.posteingang-overlay-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  font-size: 14px;
+}
+.posteingang-overlay-close {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 6px;
+}
+.posteingang-overlay-close:hover {
+  background: var(--oc-role-surface-container-high);
+}
+/* Handy: drei Teile untereinander – Dateiliste (scrollt), Ziele, Metadaten; Vorschau nur als Overlay */
+@media (max-width: 767px) {
+  .posteingang {
+    top: var(--oc-topbar-height, 44px);
+  }
+  .posteingang-layout {
+    flex-direction: column;
+  }
+  .posteingang-list {
+    flex: 0 0 38%;
+    min-width: 0;
+    min-height: 140px;
+  }
+  .posteingang-preview {
+    display: none;
+  }
+  .posteingang-actions {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 0;
+  }
 }
 </style>

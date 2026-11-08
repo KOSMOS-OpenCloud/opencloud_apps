@@ -82,7 +82,7 @@ export default defineComponent({
 <style>
 .assign-panel {
   padding: 16px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px solid var(--oc-role-outline-variant);
 }
 
 .assign-panel-title {
@@ -91,7 +91,7 @@ export default defineComponent({
   margin: 0 0 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: #666;
+  color: var(--oc-role-on-surface-variant);
 }
 
 .assign-panel-targets {
@@ -112,29 +112,29 @@ export default defineComponent({
   align-items: center;
   gap: 6px;
   padding: 12px 8px;
-  background: #fafafa;
-  border: 2px solid #e0e0e0;
+  background: var(--oc-role-surface-container);
+  border: 2px solid var(--oc-role-outline-variant);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .assign-target:hover {
-  border-color: #90caf9;
-  background: #f5f9ff;
+  border-color: var(--oc-role-primary);
+  background: var(--oc-role-surface-container-high);
 }
 
 .assign-target--selected {
-  border-color: #1565c0;
-  background: #e3f2fd;
+  border-color: var(--oc-role-primary);
+  background: var(--oc-role-secondary-container);
 }
 
 .assign-target-icon {
-  color: #555;
+  color: var(--oc-role-on-surface-variant);
 }
 
 .assign-target--selected .assign-target-icon {
-  color: #1565c0;
+  color: var(--oc-role-primary);
 }
 
 .assign-target-label {
@@ -161,8 +161,8 @@ export default defineComponent({
 .assign-btn {
   flex: 1;
   padding: 10px;
-  background: #1565c0;
-  color: #fff;
+  background: var(--oc-role-primary);
+  color: var(--oc-role-on-primary);
   border: none;
   border-radius: 6px;
   font-size: 14px;
@@ -176,11 +176,12 @@ export default defineComponent({
 }
 
 .assign-btn:hover:not(:disabled) {
-  background: #0d47a1;
+  background: color-mix(in srgb, var(--oc-role-primary) 85%, black);
 }
 
 .assign-btn:disabled {
-  background: #bbb;
+  background: var(--oc-role-surface-container-highest);
+  color: var(--oc-role-on-surface-variant);
   cursor: default;
 }
 
