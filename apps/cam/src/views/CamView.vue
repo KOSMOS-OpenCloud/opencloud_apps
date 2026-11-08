@@ -1,48 +1,40 @@
 <template>
-  <main class="ext:flex ext:flex-col ext:size-full ext:min-h-0 ext:items-center ext:gap-3 ext:p-3 ext:overflow-y-auto">
-    <div class="ext:flex ext:items-center ext:gap-3 ext:w-full ext:max-w-3xl">
-      <oc-icon name="camera" size="medium" />
-      <h1 class="ext:m-0 ext:text-lg ext:font-semibold ext:flex-1">{{ $gettext('Kamera') }}</h1>
-      <span class="ext:text-sm ext:text-role-on-surface-variant ext:font-mono">{{ targetFolder }}</span>
-    </div>
+  <!-- Wie die Kamera-App am Handy: Vorschau füllt alles, Bedienleiste unten, nichts scrollt
+       (Nutzer 2026-11-08). Hochkant liefert die Kamera Hochformat, der Sucher zeigt es unbeschnitten. -->
+  <main class="ext:relative ext:size-full ext:min-h-0 ext:overflow-hidden ext:bg-role-surface-container-highest">
+    <video ref="videoRef" autoplay playsinline muted class="ext:absolute ext:inset-0 ext:size-full ext:object-contain" :class="{ 'ext:scale-x-[-1]': facingMode === 'user' }" />
+    <div v-if="flash" class="ext:absolute ext:inset-0 ext:bg-role-on-surface ext:opacity-70" />
+    <canvas ref="canvasRef" class="ext:hidden" />
 
-    <div v-if="error" class="ext:w-full ext:max-w-3xl ext:p-3 ext:rounded-sm ext:bg-role-error-container ext:text-role-on-error-container">
+    <!-- Kopf: Ziel und Status als Einblendung -->
+    <div class="ext:absolute ext:top-2 ext:left-2 ext:right-2 ext:flex ext:items-center ext:gap-2 ext:text-xs">
+      <span class="ext:px-2 ext:py-1 ext:rounded-full ext:bg-role-surface ext:text-role-on-surface ext:opacity-90 ext:font-mono">{{ targetFolder }}</span>
+      <span v-if="saving" class="ext:px-2 ext:py-1 ext:rounded-full ext:bg-role-surface ext:text-role-on-surface ext:opacity-90">{{ $gettext('Speichern …') }}</span>
+      <span v-else-if="photos.length" class="ext:px-2 ext:py-1 ext:rounded-full ext:bg-role-surface ext:text-role-on-surface ext:opacity-90">{{ $ngettext('%{n} Foto', '%{n} Fotos', photos.length, { n: String(photos.length) }) }}</span>
+    </div>
+    <div v-if="error" class="ext:absolute ext:top-12 ext:left-2 ext:right-2 ext:p-3 ext:rounded-sm ext:bg-role-error-container ext:text-role-on-error-container ext:text-sm">
       {{ error }}
     </div>
 
-    <!-- Sucher: füllt die verfügbare Höhe (Handy hochkant: Kamera liefert Hochformat), Bild unbeschnitten;
-         Canvas nur für die Aufnahme -->
-    <div class="ext:relative ext:flex-1 ext:min-h-48 ext:w-full ext:max-w-3xl ext:bg-role-surface-container-highest ext:rounded-lg ext:overflow-hidden">
-      <video ref="videoRef" autoplay playsinline muted class="ext:absolute ext:inset-0 ext:size-full ext:object-contain" :class="{ 'ext:scale-x-[-1]': facingMode === 'user' }" />
-      <div v-if="flash" class="ext:absolute ext:inset-0 ext:bg-role-on-surface ext:opacity-70" />
-      <canvas ref="canvasRef" class="ext:hidden" />
+    <!-- Fuß: letzte Fotos und Bedienleiste -->
+    <div class="ext:absolute ext:bottom-0 ext:left-0 ext:right-0 ext:flex ext:flex-col ext:gap-2 ext:p-3 ext:bg-gradient-to-t ext:from-role-surface/80 ext:to-transparent">
+      <ul v-if="photos.length" class="ext:flex ext:gap-2 ext:m-0 ext:p-0 ext:list-none ext:overflow-x-auto">
+        <li v-for="photo in photos" :key="photo.name" class="ext:shrink-0">
+          <img :src="photo.url" :alt="photo.name" class="ext:w-14 ext:h-14 ext:object-cover ext:rounded-md" />
+        </li>
+      </ul>
+      <div class="ext:flex ext:items-center ext:justify-around">
+        <oc-button appearance="raw" :aria-label="$gettext('Kamera wechseln')" v-oc-tooltip="$gettext('Kamera wechseln')" :disabled="!stream" @click="flip">
+          <oc-icon name="camera-switch" size="large" fill-type="line" />
+        </oc-button>
+        <oc-button appearance="filled" variation="primary" class="ext:rounded-full ext:size-18 ext:justify-center" :aria-label="$gettext('Foto aufnehmen')" :disabled="!stream || saving" @click="shoot">
+          <oc-icon name="camera-lens" size="xlarge" fill-type="fill" />
+        </oc-button>
+        <oc-button appearance="raw" :aria-label="$gettext('Ordner öffnen')" v-oc-tooltip="$gettext('Ordner öffnen')" :disabled="!photos.length" @click="openFolder">
+          <oc-icon name="folder-image" size="large" fill-type="line" />
+        </oc-button>
+      </div>
     </div>
-
-    <div class="ext:flex ext:items-center ext:gap-6">
-      <oc-button appearance="raw" :aria-label="$gettext('Kamera wechseln')" v-oc-tooltip="$gettext('Kamera wechseln')" :disabled="!stream" @click="flip">
-        <oc-icon name="camera-switch" size="large" fill-type="line" />
-      </oc-button>
-      <oc-button appearance="filled" variation="primary" class="ext:rounded-full ext:size-16 ext:justify-center" :aria-label="$gettext('Foto aufnehmen')" :disabled="!stream || saving" @click="shoot">
-        <oc-icon name="camera-lens" size="large" fill-type="fill" />
-      </oc-button>
-      <oc-button appearance="raw" :aria-label="$gettext('Ordner öffnen')" v-oc-tooltip="$gettext('Ordner öffnen')" :disabled="!photos.length" @click="openFolder">
-        <oc-icon name="folder-image" size="large" fill-type="line" />
-      </oc-button>
-    </div>
-
-    <p class="ext:m-0 ext:text-sm ext:text-role-on-surface-variant">
-      <span v-if="saving">{{ $gettext('Speichern …') }}</span>
-      <span v-else-if="photos.length">{{ $ngettext('%{n} Foto gespeichert', '%{n} Fotos gespeichert', photos.length, { n: String(photos.length) }) }}</span>
-      <span v-else>{{ $gettext('Fotos landen in Persönlich unter Fotos/Jahr/Monat.') }}</span>
-    </p>
-
-    <!-- Aufgenommene Fotos dieser Sitzung -->
-    <ul v-if="photos.length" class="ext:flex ext:flex-wrap ext:gap-2 ext:m-0 ext:p-0 ext:list-none ext:w-full ext:max-w-3xl ext:shrink-0">
-      <li v-for="photo in photos" :key="photo.name" class="ext:w-24">
-        <img :src="photo.url" :alt="photo.name" class="ext:w-24 ext:h-16 ext:object-cover ext:rounded-sm" />
-        <span class="ext:block ext:text-xs ext:truncate ext:text-role-on-surface-variant" :title="photo.name">{{ photo.name }}</span>
-      </li>
-    </ul>
   </main>
 </template>
 
@@ -95,8 +87,14 @@ export default defineComponent({
       stop()
       error.value = ''
       try {
+        // Hochkant (Handy) Hochformat anfordern, sonst Querformat; Browser liefern sonst gedrehte Querbilder
+        const portrait = window.innerHeight > window.innerWidth
         stream.value = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: facingMode.value, width: { ideal: 1920 }, height: { ideal: 1080 } },
+          video: {
+            facingMode: facingMode.value,
+            width: { ideal: portrait ? 1080 : 1920 },
+            height: { ideal: portrait ? 1920 : 1080 }
+          },
           audio: false
         })
         if (videoRef.value) {
