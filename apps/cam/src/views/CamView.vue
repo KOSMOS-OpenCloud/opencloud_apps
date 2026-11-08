@@ -24,6 +24,10 @@
         </li>
       </ul>
       <div class="ext:flex ext:items-center ext:justify-around">
+        <!-- Hoch-/Querformat erzwingen (Nutzer 2026-11-08); Vorgabe folgt der Bildschirmlage -->
+        <oc-button appearance="raw" :aria-label="$gettext('Hoch-/Querformat')" v-oc-tooltip="portrait ? $gettext('Querformat') : $gettext('Hochformat')" :disabled="!stream" @click="toggleOrientation">
+          <oc-icon :name="portrait ? 'smartphone' : 'tablet'" size="large" fill-type="line" :class="{ 'ext:rotate-90': !portrait }" />
+        </oc-button>
         <oc-button appearance="raw" :aria-label="$gettext('Kamera wechseln')" v-oc-tooltip="$gettext('Kamera wechseln')" :disabled="!stream" @click="flip">
           <oc-icon name="camera-switch" size="large" fill-type="line" />
         </oc-button>
@@ -69,6 +73,12 @@ export default defineComponent({
     const canvasRef = ref<HTMLCanvasElement | null>(null)
     const stream = ref<MediaStream | null>(null)
     const facingMode = ref<'user' | 'environment'>('environment')
+    // Hoch-/Querformat: Vorgabe aus der Bildschirmlage, per Knopf umschaltbar (Kamera wird neu angefordert)
+    const portrait = ref(typeof window !== 'undefined' && window.innerHeight > window.innerWidth)
+    const toggleOrientation = () => {
+      portrait.value = !portrait.value
+      void start()
+    }
     const error = ref('')
     const saving = ref(false)
     const flash = ref(false)
@@ -87,13 +97,13 @@ export default defineComponent({
       stop()
       error.value = ''
       try {
-        // Hochkant (Handy) Hochformat anfordern, sonst Querformat; Browser liefern sonst gedrehte Querbilder
-        const portrait = window.innerHeight > window.innerWidth
+        // Hochformat anfordern, wenn hochkant gewünscht (Vorgabe: Bildschirmlage), sonst Querformat
         stream.value = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: facingMode.value,
-            width: { ideal: portrait ? 1080 : 1920 },
-            height: { ideal: portrait ? 1920 : 1080 }
+            width: { ideal: portrait.value ? 1080 : 1920 },
+            height: { ideal: portrait.value ? 1920 : 1080 },
+            aspectRatio: { ideal: portrait.value ? 9 / 16 : 16 / 9 }
           },
           audio: false
         })
@@ -182,7 +192,7 @@ export default defineComponent({
       photos.value.forEach((photo) => URL.revokeObjectURL(photo.url))
     })
 
-    return { $gettext, $ngettext, videoRef, canvasRef, stream, facingMode, error, saving, flash, photos, targetFolder, flip, shoot, openFolder }
+    return { $gettext, $ngettext, videoRef, canvasRef, stream, facingMode, portrait, error, saving, flash, photos, targetFolder, flip, toggleOrientation, shoot, openFolder }
   }
 })
 </script>
