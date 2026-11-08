@@ -1,5 +1,5 @@
 <template>
-  <main class="ext:flex ext:flex-col ext:size-full ext:items-center ext:gap-4 ext:p-4">
+  <main class="ext:flex ext:flex-col ext:size-full ext:min-h-0 ext:items-center ext:gap-3 ext:p-3 ext:overflow-y-auto">
     <div class="ext:flex ext:items-center ext:gap-3 ext:w-full ext:max-w-3xl">
       <oc-icon name="camera" size="medium" />
       <h1 class="ext:m-0 ext:text-lg ext:font-semibold ext:flex-1">{{ $gettext('Kamera') }}</h1>
@@ -10,9 +10,10 @@
       {{ error }}
     </div>
 
-    <!-- Sucher: Video der Kamera; Canvas nur für die Aufnahme -->
-    <div class="ext:relative ext:w-full ext:max-w-3xl ext:aspect-video ext:bg-role-surface-container-highest ext:rounded-lg ext:overflow-hidden">
-      <video ref="videoRef" autoplay playsinline muted class="ext:size-full ext:object-cover" :class="{ 'ext:scale-x-[-1]': facingMode === 'user' }" />
+    <!-- Sucher: füllt die verfügbare Höhe (Handy hochkant: Kamera liefert Hochformat), Bild unbeschnitten;
+         Canvas nur für die Aufnahme -->
+    <div class="ext:relative ext:flex-1 ext:min-h-48 ext:w-full ext:max-w-3xl ext:bg-role-surface-container-highest ext:rounded-lg ext:overflow-hidden">
+      <video ref="videoRef" autoplay playsinline muted class="ext:absolute ext:inset-0 ext:size-full ext:object-contain" :class="{ 'ext:scale-x-[-1]': facingMode === 'user' }" />
       <div v-if="flash" class="ext:absolute ext:inset-0 ext:bg-role-on-surface ext:opacity-70" />
       <canvas ref="canvasRef" class="ext:hidden" />
     </div>
@@ -36,7 +37,7 @@
     </p>
 
     <!-- Aufgenommene Fotos dieser Sitzung -->
-    <ul v-if="photos.length" class="ext:flex ext:flex-wrap ext:gap-2 ext:m-0 ext:p-0 ext:list-none ext:w-full ext:max-w-3xl">
+    <ul v-if="photos.length" class="ext:flex ext:flex-wrap ext:gap-2 ext:m-0 ext:p-0 ext:list-none ext:w-full ext:max-w-3xl ext:shrink-0">
       <li v-for="photo in photos" :key="photo.name" class="ext:w-24">
         <img :src="photo.url" :alt="photo.name" class="ext:w-24 ext:h-16 ext:object-cover ext:rounded-sm" />
         <span class="ext:block ext:text-xs ext:truncate ext:text-role-on-surface-variant" :title="photo.name">{{ photo.name }}</span>
