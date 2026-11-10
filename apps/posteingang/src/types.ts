@@ -25,12 +25,18 @@ export interface TargetFolder {
   label: string
   icon: string
   path: string
+  // 'return': Rückgabe an die vorige Stufe, eigene Farbe, immer zuweisbar
+  kind?: 'return'
 }
+
+// assign = Zuweisen, assignRename = Zuweisen+, file = Ablegen (Verschieben-Dialog)
+export type PosteingangAction = 'assign' | 'assignRename' | 'file'
 
 export interface PosteingangConfig {
   spaceName: string
   sourceFolders: string[]
   targetFolders: TargetFolder[]
+  actions: PosteingangAction[]
 }
 
 export interface DocumentEntry {
@@ -41,5 +47,7 @@ export interface DocumentEntry {
 export const DEFAULT_CONFIG: PosteingangConfig = {
   spaceName: 'Posteingang',
   sourceFolders: ['Inbox', 'Rueckgabe'],
-  targetFolders: []
+  targetFolders: [],
+  // Configs ohne "actions" verhalten sich wie bisher
+  actions: ['assign', 'assignRename']
 }

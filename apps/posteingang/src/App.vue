@@ -51,7 +51,11 @@
           @assign="onAssign"
           @assign-rename="onAssignRename"
           :has-doc-title="!!docMetadata?.['doc.title']"
+          :actions="config.actions"
+          :has-document="!!selectedDoc"
+          :filing="filing"
           @delete="onDelete"
+          @file="onFile"
         />
         <MetadataPanel
           v-if="selectedDoc"
@@ -71,15 +75,29 @@
 </template>
 
 <script lang="ts">
-import { defineComponent, ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { useClientService, useSpacesStore, useUserStore, useMessages } from '@opencloud-eu/web-pkg'
+import { defineComponent, ref, computed, markRaw, onMounted, onBeforeUnmount } from 'vue'
+import {
+  useClientService,
+  useSpacesStore,
+  useUserStore,
+  useMessages,
+  useModals,
+  useResourcesStore,
+  useGetMatchingSpace,
+  usePasteWorker,
+  useRouter,
+  ResourceTransfer,
+  TransferType
+} from '@opencloud-eu/web-pkg'
 import { defineStore } from 'pinia'
-import { SpaceResource } from '@opencloud-eu/web-client'
+import { useGettext } from 'vue3-gettext'
+import { Resource, SpaceResource, isProjectSpaceResource } from '@opencloud-eu/web-client'
 import DocumentList from './components/DocumentList.vue'
 import PdfPreview from './components/PdfPreview.vue'
 import AssignPanel from './components/AssignPanel.vue'
 import MetadataPanel from './components/MetadataPanel.vue'
-import { PosteingangConfig, DocumentEntry, JsonSchema, DEFAULT_CONFIG } from './types'
+import LocationPicker from './components/LocationPicker.vue'
+import { PosteingangConfig, DocumentEntry, JsonSchema, TargetFolder, DEFAULT_CONFIG } from './types'
 
 export default defineComponent({
   name: 'Posteingang',
@@ -89,6 +107,12 @@ export default defineComponent({
     const spacesStore = useSpacesStore()
     const userStore = useUserStore()
     const { showMessage, showErrorMessage } = useMessages()
+    const { dispatchModal } = useModals()
+    const resourcesStore = useResourcesStore()
+    const { getMatchingSpace } = useGetMatchingSpace()
+    const { startWorker } = usePasteWorker()
+    const router = useRouter()
+    const { $gettext, $ngettext } = useGettext()
 
     const config = ref<PosteingangConfig>({ ...DEFAULT_CONFIG })
     const metaSchema = ref<JsonSchema | null>(null)
@@ -103,6 +127,7 @@ export default defineComponent({
     const reindexing = ref(false)
     const editingMeta = ref(false)
     const savingMeta = ref(false)
+    const filing = ref(false)
     // Handy-Modus (drei Teile untereinander): Vorschau nur als Overlay nach Klick in der Liste
     const mobilePreviewOpen = ref(false)
     const isMobile = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
@@ -395,6 +420,84 @@ export default defineComponent({
       assigning.value = false
     }
 
+    /**
+     * Ablegen: Verschieben-Dialog des Kerns (Embed-Ortswahl) für das aktuelle Dokument.
+     * Ablage geht in andere Spaces, dafür muss "Verschieben zwischen Spaces" an sein,
+     * sonst kopiert der Kern nur. Ist es aus, wird es eingeschaltet und gemeldet.
+     */
+    function onFile() {
+      if (!space.value || !selectedDoc.value) return
+      const store = resourcesStore as any
+      if (typeof store.setIsCrossSpaceMoveEnabled !== 'function') {
+        showErrorMessage({ title: 'Ablegen nicht möglich: Verschieben zwischen Spaces wird vom Kern nicht unterstützt' })
+        return
+      }
+      if (!store.isCrossSpaceMoveEnabled) {
+        store.setIsCrossSpaceMoveEnabled(true)
+        showMessage({
+          title: 'Verschieben zwischen Spaces eingeschaltet',
+          desc: 'Abgelegte Dokumente werden verschoben statt kopiert, Metadaten bleiben erhalten. Änderbar unter Einstellungen.'
+        })
+      }
+
+      const doc = selectedDoc.value
+      const sourceSpace = space.value
+      const startPath = router.resolve({ name: 'files-spaces-projects' }).href
+      dispatchModal({
+        elementClass: 'posteingang-picker-modal',
+        title: `Ablegen: ${doc.resource.name}`,
+        customComponent: markRaw(LocationPicker) as any,
+        hideActions: true,
+        customComponentAttrs: () => ({
+          startPath,
+          submitButtonTitle: 'Hier ablegen',
+          callbackFn: (targetResources: Resource[]) => fileDocument(doc, sourceSpace, targetResources[0])
+        }),
+        focusTrapInitial: false
+      })
+    }
+
+    async function fileDocument(doc: DocumentEntry, sourceSpace: SpaceResource, targetFolder: Resource) {
+      if (!targetFolder) return
+      const targetSpace = isProjectSpaceResource(targetFolder) ? targetFolder : getMatchingSpace(targetFolder)
+      filing.value = true
+      try {
+        const resourceTransfer = new ResourceTransfer(
+          sourceSpace,
+          [doc.resource],
+          targetSpace,
+          targetFolder,
+          ref(targetFolder),
+          clientService,
+          $gettext,
+          $ngettext
+        )
+        const transferData = await resourceTransfer.getTransferData(TransferType.MOVE)
+        if (!transferData.length) {
+          filing.value = false
+          return
+        }
+        const effectiveTransferType = transferData[0].transferType
+        startWorker(transferData, ({ successful, failed }) => {
+          resourceTransfer.showResultMessage(failed, successful, effectiveTransferType)
+          // nur bei echtem Verschieben verschwindet das Dokument aus dem Posteingang
+          if (successful.length && effectiveTransferType === TransferType.MOVE) {
+            if (selectedDoc.value === doc) {
+              documents.value = documents.value.filter(d => d !== doc)
+              selectFirstOrNone()
+            } else {
+              documents.value = documents.value.filter(d => d !== doc)
+            }
+          }
+          filing.value = false
+        })
+      } catch (err: any) {
+        console.error('[posteingang] file error:', err)
+        showMoveError(err)
+        filing.value = false
+      }
+    }
+
     async function onDelete() {
       if (!space.value || !selectedDoc.value) return
 
@@ -521,6 +624,8 @@ export default defineComponent({
       onAssign,
       onAssignRename,
       onDelete,
+      onFile,
+      filing,
       onReindex,
       onMetadataUpdate,
       onSaveMetadata
