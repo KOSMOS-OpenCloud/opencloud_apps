@@ -2,3 +2,6 @@ dist/
 DIST
 apps/*/node_modules/
 apps/*/pnpm-lock.yaml
+
+# TODOs liegen in BRIEFINGS/todos, nicht im Repo
+TODO_*.md
